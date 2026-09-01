@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strix-Lite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#0F1214; --panel:#161A1D; --raised:#1B2024; --border:#262C31; --border2:#333B42;
+    --ink:#E7E6E1; --muted:#9A968E; --faint:#6C6A63;
+    --accent:#40C6BB; --accent-dim:#123331;
+    --crit:#E8646A; --high:#EC8A4E; --med:#DBB44E; --low:#6BA6DA; --info:#8A96A0;
+    --a-root:#40C6BB; --a-recon:#6AB0F0; --a-injection:#E8896B; --a-access:#B99BE8; --a-sys:#8A8780;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column;
+  }
+  .mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  code{font-family:"IBM Plex Mono",monospace}
+
+  /* header */
+  header{
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    padding:12px 20px;border-bottom:1px solid var(--border);background:var(--panel)
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em;font-size:16px}
+  .brand .owl{width:26px;height:26px;color:var(--accent);flex:none}
+  .brand .owl svg{width:26px;height:26px}
+  .brand small{color:var(--faint);font-weight:400;font-size:12px}
+  .target{
+    font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);
+    background:var(--raised);border:1px solid var(--border);border-radius:7px;padding:5px 10px;
+    max-width:38ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+  }
+  .spacer{margin-left:auto}
+  .meters{display:flex;gap:8px;flex-wrap:wrap}
+  .meter{
+    display:flex;flex-direction:column;align-items:flex-end;gap:1px;
+    background:var(--raised);border:1px solid var(--border);border-radius:8px;padding:5px 11px;min-width:64px
+  }
+  .meter b{font-family:"IBM Plex Mono",monospace;font-size:15px;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .meter span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+  button#run{
+    font:inherit;font-weight:600;font-size:14px;cursor:pointer;
+    background:var(--accent);color:#04211f;border:none;border-radius:9px;padding:9px 18px;
+    display:inline-flex;align-items:center;gap:8px;transition:opacity .15s,transform .05s
+  }
+  button#run:hover{opacity:.92}
+  button#run:active{transform:translateY(1px)}
+  button#run:disabled{background:var(--raised);color:var(--faint);cursor:not-allowed}
+  .statuspill{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+    padding:4px 9px;border-radius:999px;border:1px solid var(--border2);color:var(--muted);display:inline-flex;align-items:center;gap:6px
+  }
+  .statuspill .d{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+  .statuspill.running .d{background:var(--accent);animation:pulse 1.1s ease-in-out infinite}
+  .statuspill.done .d{background:var(--low)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  @media (prefers-reduced-motion:reduce){.statuspill.running .d{animation:none}}
+
+  /* layout */
+  main{flex:1;display:grid;grid-template-columns:340px 1fr;gap:14px;padding:14px 20px 20px;min-height:0}
+  @media (max-width:880px){main{grid-template-columns:1fr;overflow:auto}}
+  .col{display:flex;flex-direction:column;gap:14px;min-height:0}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;min-height:0}
+  .card>h2{
+    margin:0;padding:11px 14px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);
+    font-family:"IBM Plex Mono",monospace;font-weight:600;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px
+  }
+  .card>h2 .count{margin-left:auto;color:var(--muted)}
+
+  /* agent graph */
+  #agents{padding:10px;gap:8px;display:flex;flex-direction:column;overflow:auto}
+  .agent{
+    border:1px solid var(--border);border-left:3px solid var(--a-sys);border-radius:9px;background:var(--raised);
+    padding:9px 11px;display:flex;flex-direction:column;gap:3px
+  }
+  .agent.child{margin-left:16px}
+  .agent .row{display:flex;align-items:center;gap:8px}
+  .agent .name{font-weight:600;font-size:13.5px}
+  .agent .role{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  .agent .st{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:5px}
+  .agent .st .d{width:6px;height:6px;border-radius:50%;background:var(--faint)}
+  .agent[data-st="running"] .st .d{background:var(--accent);animation:pulse 1.1s infinite}
+  .agent[data-st="waiting"] .st .d{background:var(--med)}
+  .agent[data-st="done"] .st .d{background:var(--low)}
+  .agent[data-st="stopped"] .st .d{background:var(--crit)}
+  .agent .note{font-size:11.5px;color:var(--muted);min-height:1em}
+  .agent .skills{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+  .agent .skills span{font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--faint);background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:1px 5px}
+
+  /* findings */
+  #findings{padding:10px;gap:8px;display:flex;flex-direction:column;overflow:auto}
+  .empty{color:var(--faint);font-size:12.5px;padding:10px;text-align:center}
+  .finding{border:1px solid var(--border);border-radius:9px;background:var(--raised);padding:9px 11px;cursor:pointer}
+  .finding .top{display:flex;align-items:center;gap:8px}
+  .sevtag{font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;letter-spacing:.05em;padding:2px 7px;border-radius:5px;color:#0d0f10}
+  .sev-critical{background:var(--crit)} .sev-high{background:var(--high)} .sev-medium{background:var(--med)} .sev-low{background:var(--low)} .sev-info{background:var(--info)}
+  .finding .ttl{font-weight:600;font-size:13px}
+  .finding .cvss{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted)}
+  .finding .body{display:none;margin-top:7px;font-size:12px;color:var(--muted);line-height:1.55}
+  .finding.open .body{display:block}
+  .finding .body b{color:var(--ink);font-weight:600}
+  .finding .body code{font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--accent);display:inline-block;margin-top:3px}
+  .finding .meta{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--faint)}
+
+  /* live log */
+  #logcard{min-height:0}
+  #log{
+    flex:1;overflow:auto;padding:8px 6px 14px;font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.5;
+    background:var(--bg);border-radius:0 0 12px 12px
+  }
+  .line{display:flex;gap:9px;padding:1.5px 12px;border-left:2px solid transparent;white-space:pre-wrap;word-break:break-word}
+  .line:hover{background:var(--raised)}
+  .line .t{color:var(--faint);flex:none}
+  .line .g{flex:none;width:12px;text-align:center;font-weight:600}
+  .line .ag{flex:none;font-weight:600}
+  .line .msg{color:var(--ink);flex:1}
+  .line.l-system{border-left-color:var(--a-sys)} .line.l-system .msg{color:var(--muted)}
+  .line.l-phase{border-left-color:var(--accent)} .line.l-phase .msg{color:var(--accent)}
+  .line.l-think .msg{color:var(--muted)}
+  .line.l-skill{border-left-color:var(--a-access)}
+  .line.l-tool{border-left-color:var(--low)}
+  .line.l-finding{border-left-color:var(--high);background:rgba(236,138,78,.06)}
+  .line.l-finding .msg{color:var(--ink);font-weight:500}
+  .line.l-graph .msg{color:var(--muted)}
+  .line.l-report{border-left-color:var(--accent);background:var(--accent-dim)}
+  .line.l-report .msg{color:var(--accent);font-weight:600}
+  .line.l-error{border-left-color:var(--crit)} .line.l-error .msg{color:var(--crit)}
+
+  /* report modal */
+  #report{position:fixed;inset:0;background:rgba(6,8,9,.72);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}
+  #report.show{display:flex}
+  #report .box{background:var(--panel);border:1px solid var(--border2);border-radius:14px;max-width:760px;width:100%;max-height:86vh;display:flex;flex-direction:column}
+  #report h3{margin:0;padding:14px 18px;border-bottom:1px solid var(--border);font-size:14px;display:flex;align-items:center;gap:10px}
+  #report h3 .x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:20px;line-height:1;border:none;background:none}
+  #report pre{margin:0;padding:18px;overflow:auto;font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.6;color:var(--ink);white-space:pre-wrap}
+  .hint{color:var(--faint);font-size:11.5px;padding:0 4px}
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">
+    <span class="owl" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="10" r="3"/><circle cx="15.5" cy="10" r="3"/><path d="M4 6.5C6 4 9 4 12 5.4 15 4 18 4 20 6.5"/><path d="M12 13.2V17M9.5 19h5"/></svg></span>
+    Strix-Lite <small>multi-agent pentest, live</small>
+  </span>
+  <span class="target mono" id="target" title="the only target the agents touch">target: —</span>
+  <span class="spacer"></span>
+  <span class="statuspill" id="status"><span class="d"></span><span id="status-t">idle</span></span>
+  <div class="meters">
+    <div class="meter"><b id="m-agents">0</b><span>agents</span></div>
+    <div class="meter"><b id="m-findings">0</b><span>findings</span></div>
+    <div class="meter"><b id="m-turns">0</b><span>turns</span></div>
+    <div class="meter"><b id="m-cost">$0.00</b><span>spend</span></div>
+  </div>
+  <button id="run">▶ Run scan</button>
+</header>
+
+<main>
+  <div class="col">
+    <div class="card" style="flex:1 1 auto">
+      <h2>Agent graph <span class="count" id="agent-count"></span></h2>
+      <div id="agents"><div class="empty">Press <b>Run scan</b> — the root agent will spawn specialists here.</div></div>
+    </div>
+    <div class="card" style="flex:1 1 auto">
+      <h2>Findings <span class="count" id="find-sev"></span></h2>
+      <div id="findings"><div class="empty">No findings yet.</div></div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="card" id="logcard" style="flex:1">
+      <h2>Live log <span class="count"><button id="view-report" style="display:none;font:inherit;background:none;border:none;color:var(--accent);cursor:pointer;font-family:inherit">view report ↗</button></span></h2>
+      <div id="log"><div class="empty" style="padding:20px">Waiting for a scan… every agent action streams here in real time.</div></div>
+    </div>
+    <div class="hint mono">Bundled demo target only · authorized-testing demonstration · no external hosts are contacted</div>
+  </div>
+</main>
+
+<div id="report" role="dialog" aria-modal="true" aria-label="Penetration test report">
+  <div class="box">
+    <h3>⚑ Penetration test report <button class="x" id="report-x" aria-label="close">×</button></h3>
+    <pre id="report-md"></pre>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var AGENT_COLORS = {root:"var(--a-root)",recon:"var(--a-recon)",injection:"var(--a-injection)",access:"var(--a-access)",system:"var(--a-sys)"};
+  var GLYPH = {system:"·",phase:"▸",think:"·",skill:"◆",tool:"→",finding:"⚑",graph:"○",report:"★",error:"✕"};
+  var $ = function(id){return document.getElementById(id)};
+  var log=$("log"), agentsEl=$("agents"), findingsEl=$("findings");
+  var seen=new Set(), agents={}, findings={}, reportMd="", autoscroll=true, started=false;
+
+  function agentColor(role){return AGENT_COLORS[role]||"var(--muted)"}
+  function fmtTime(ts){var d=new Date(ts*1000);return d.toTimeString().slice(0,8)}
+  function esc(s){return String(s).replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})}
+
+  function ensureCleared(){
+    if(started) return;
+    started=true;
+    log.innerHTML=""; agentsEl.innerHTML=""; findingsEl.innerHTML='<div class="empty">No findings yet.</div>';
+    agents={}; findings={}; seen.clear(); reportMd=""; $("view-report").style.display="none";
+  }
+
+  function addLine(ev){
+    var div=document.createElement("div");
+    div.className="line l-"+ev.level;
+    div.innerHTML='<span class="t">'+fmtTime(ev.ts)+'</span>'
+      +'<span class="g" style="color:'+agentColor(ev.role)+'">'+(GLYPH[ev.level]||"·")+'</span>'
+      +'<span class="ag" style="color:'+agentColor(ev.role)+'">'+esc(ev.agent)+'</span>'
+      +'<span class="msg">'+esc(ev.message)+'</span>';
+    log.appendChild(div);
+    if(autoscroll) log.scrollTop=log.scrollHeight;
+    while(log.childNodes.length>1200) log.removeChild(log.firstChild);
+  }
+
+  function renderAgents(){
+    var list=Object.values(agents);
+    if(!list.length) return;
+    // root first, then children in spawn order
+    list.sort(function(a,b){return (a.parent?1:0)-(b.parent?1:0) || a.order-b.order});
+    agentsEl.innerHTML="";
+    list.forEach(function(a){
+      var el=document.createElement("div");
+      el.className="agent"+(a.parent?" child":"");
+      el.setAttribute("data-st",a.status);
+      el.style.borderLeftColor=agentColor(a.role);
+      var skills=(a.skills||[]).map(function(s){return "<span>"+esc(s)+"</span>"}).join("");
+      el.innerHTML='<div class="row"><span class="name" style="color:'+agentColor(a.role)+'">'+esc(a.name)+'</span>'
+        +'<span class="role">'+esc(a.role)+'</span>'
+        +'<span class="st"><span class="d"></span>'+esc(a.status)+'</span></div>'
+        +'<div class="note">'+esc(a.note||"")+'</div>'
+        +(skills?'<div class="skills">'+skills+'</div>':'');
+      agentsEl.appendChild(el);
+    });
+    $("agent-count").textContent=list.length;
+    $("m-agents").textContent=list.length;
+  }
+
+  function renderFindings(){
+    var list=Object.values(findings);
+    var order={critical:0,high:1,medium:2,low:3,info:4};
+    list.sort(function(a,b){return order[a.severity]-order[b.severity]});
+    if(!list.length){findingsEl.innerHTML='<div class="empty">No findings yet.</div>';}
+    else{
+      findingsEl.innerHTML="";
+      list.forEach(function(f){
+        var el=document.createElement("div");
+        el.className="finding";
+        el.innerHTML='<div class="top"><span class="sevtag sev-'+f.severity+'">'+f.severity.toUpperCase()+'</span>'
+          +'<span class="ttl">'+esc(f.title)+'</span><span class="cvss">CVSS '+f.cvss+'</span></div>'
+          +'<div class="body"><div class="meta">'+esc(f.id)+' · '+esc(f.cwe||"")+' · by '+esc(f.agent)+' · '+esc(f.endpoint)+'</div>'
+          +'<div style="margin-top:5px"><b>Evidence.</b> '+esc(f.evidence)+'</div>'
+          +'<div style="margin-top:4px"><b>Fix.</b> '+esc(f.remediation)+'</div>'
+          +(f.poc?'<div style="margin-top:4px"><b>PoC.</b><br><code>'+esc(f.poc)+'</code></div>':'')+'</div>';
+        el.onclick=function(){el.classList.toggle("open")};
+        findingsEl.appendChild(el);
+      });
+    }
+    var counts={critical:0,high:0,medium:0,low:0,info:0};
+    list.forEach(function(f){counts[f.severity]++});
+    $("m-findings").textContent=list.length;
+    $("find-sev").textContent=["critical","high","medium","low","info"].filter(function(s){return counts[s]}).map(function(s){return counts[s]+" "+s}).join(" · ");
+  }
+
+  function handle(ev){
+    if(seen.has(ev.seq)) return; seen.add(ev.seq);
+    if(ev.seq===1) ensureCleared();
+    addLine(ev);
+    if(ev.level==="graph"){
+      var id=ev.agent_id, a=agents[id];
+      if(!a){a=agents[id]={id:id,name:ev.agent,role:ev.role,parent:ev.data.parent||null,order:Object.keys(agents).length,skills:ev.data.skills||[],status:ev.data.status||"spawning",note:""};}
+      if(ev.data.status) a.status=ev.data.status;
+      if(ev.data.skills) a.skills=ev.data.skills;
+      a.note=ev.message;
+      renderAgents();
+    } else if(ev.level==="finding" && ev.data.finding){
+      findings[ev.data.finding.id]=ev.data.finding;
+      renderFindings();
+    } else if(ev.level==="report"){
+      reportMd=ev.data.markdown||"";
+      if(reportMd){$("view-report").style.display="inline";}
+    }
+  }
+
+  // meters + status backstop
+  function poll(){
+    fetch("/api/state").then(function(r){return r.json()}).then(function(s){
+      $("target").textContent="target: "+(s.target||"—");
+      $("m-turns").textContent=s.turns||0;
+      $("m-cost").textContent="$"+(Number(s.cost||0)).toFixed(2);
+      var st=$("status"), t=$("status-t");
+      st.className="statuspill"+(s.scanning?" running":(s.status==="done"?" done":""));
+      t.textContent=s.scanning?"running":(s.status||"idle");
+      $("run").disabled=!!s.scanning;
+      $("run").textContent=s.scanning?"● scanning…":"▶ Run scan";
+    }).catch(function(){});
+  }
+
+  // live stream — or a one-shot static render for screenshots via ?snap
+  var SNAP = location.search.indexOf("snap")>=0;
+  if(!SNAP){
+    var es=new EventSource("/api/events");
+    es.onmessage=function(e){ try{ handle(JSON.parse(e.data)); }catch(_){} };
+  } else {
+    fetch("/api/log").then(function(r){return r.json()}).then(function(d){
+      (d.events||[]).forEach(handle);
+    }).catch(function(){});
+  }
+
+  log.addEventListener("scroll",function(){
+    autoscroll = log.scrollTop+log.clientHeight >= log.scrollHeight-40;
+  });
+
+  $("run").onclick=function(){
+    started=false; // next run's seq===1 clears the panes
+    fetch("/api/scan",{method:"POST"}).then(function(r){return r.json()}).then(poll);
+  };
+  $("view-report").onclick=function(){ $("report-md").textContent=reportMd; $("report").classList.add("show"); };
+  $("report-x").onclick=function(){ $("report").classList.remove("show"); };
+  $("report").onclick=function(e){ if(e.target===$("report")) $("report").classList.remove("show"); };
+  document.addEventListener("keydown",function(e){ if(e.key==="Escape") $("report").classList.remove("show"); });
+
+  poll(); if(!SNAP) setInterval(poll,1000);
+})();
+</script>
+</body>
+</html>
