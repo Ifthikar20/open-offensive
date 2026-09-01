@@ -18,6 +18,15 @@ This directory is the reference set. Start with whichever door fits what you nee
 | [EXTENDING.md](EXTENDING.md) | Adding a specialist agent, a tool, or a skill; plugging in or swapping the LLM; extending the demo target. |
 | [SECURITY.md](SECURITY.md) | The authorization and safety model: authorized-use-only, the host allowlist, the `--authorized` gate, and the localhost demo. |
 
+## Reference
+
+Background material on the upstream project OpenOffensive draws from — reference reading,
+not part of OpenOffensive's own product docs.
+
+| Document | What it covers |
+| --- | --- |
+| [reference/strix-architecture.md](reference/strix-architecture.md) | A comprehensive, source-level analysis of the open-source **Strix** project (usestrix/strix, v1.5.3): the OpenAI Agents SDK foundation, the multi-agent coordinator, the two tool-execution planes, the Docker/Caido sandbox, the skills system, the reporting pipeline, and the interfaces — with diagrams and a map back to OpenOffensive. |
+
 ## Fast path
 
 ```bash
