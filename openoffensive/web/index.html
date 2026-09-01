@@ -65,6 +65,8 @@
   .statuspill.done .d{background:var(--low)}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
   @media (prefers-reduced-motion:reduce){.statuspill.running .d{animation:none}}
+  .modebadge{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--accent);background:var(--accent-dim);border:1px solid var(--border2);border-radius:6px;padding:3px 8px}
+  #history{font:inherit;font-size:12px;background:var(--raised);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:8px 9px;max-width:160px}
 
   /* layout */
   main{flex:1;display:grid;grid-template-columns:340px 1fr;gap:14px;padding:14px 20px 20px;min-height:0}
@@ -153,6 +155,7 @@
     OpenOffensive <small>multi-agent pentest, live</small>
   </span>
   <span class="target mono" id="target" title="the only target the agents touch">target: —</span>
+  <span class="modebadge mono" id="mode" title="how the agents decide their next action">scripted</span>
   <span class="spacer"></span>
   <span class="statuspill" id="status"><span class="d"></span><span id="status-t">idle</span></span>
   <div class="meters">
@@ -161,6 +164,7 @@
     <div class="meter"><b id="m-turns">0</b><span>turns</span></div>
     <div class="meter"><b id="m-cost">$0.00</b><span>spend</span></div>
   </div>
+  <select id="history" title="load a past run"><option value="">history…</option></select>
   <button id="run">▶ Run scan</button>
 </header>
 
@@ -294,24 +298,55 @@
   }
 
   // meters + status backstop
+  var wasScanning=false, viewingHistory=false;
   function poll(){
     fetch("/api/state").then(function(r){return r.json()}).then(function(s){
       $("target").textContent="target: "+(s.target||"—");
-      $("m-turns").textContent=s.turns||0;
-      $("m-cost").textContent="$"+(Number(s.cost||0)).toFixed(2);
-      var st=$("status"), t=$("status-t");
-      st.className="statuspill"+(s.scanning?" running":(s.status==="done"?" done":""));
-      t.textContent=s.scanning?"running":(s.status||"idle");
+      $("mode").textContent=(s.mode||"scripted")+(s.mode==="llm"&&s.model?" · "+s.model:"");
+      if(!viewingHistory){
+        $("m-turns").textContent=s.turns||0;
+        $("m-cost").textContent="$"+(Number(s.cost||0)).toFixed(2);
+        var st=$("status"), t=$("status-t");
+        st.className="statuspill"+(s.scanning?" running":(s.status==="done"?" done":""));
+        t.textContent=s.scanning?"running":(s.status||"idle");
+      }
       $("run").disabled=!!s.scanning;
       $("run").textContent=s.scanning?"● scanning…":"▶ Run scan";
+      if(wasScanning && !s.scanning){ refreshHistory(); }
+      wasScanning=!!s.scanning;
     }).catch(function(){});
   }
+
+  // run history
+  function refreshHistory(){
+    fetch("/api/runs").then(function(r){return r.json()}).then(function(d){
+      var sel=$("history"); var cur=sel.value;
+      sel.innerHTML='<option value="">history…</option>';
+      (d.runs||[]).forEach(function(r){
+        var o=document.createElement("option"); o.value=r.scan_id;
+        o.textContent=r.scan_id+" · "+r.total+" findings · "+r.mode;
+        sel.appendChild(o);
+      });
+      sel.value=cur;
+    }).catch(function(){});
+  }
+  function loadRun(id){
+    viewingHistory=true;
+    fetch("/api/runs/"+encodeURIComponent(id)).then(function(r){return r.json()}).then(function(d){
+      started=false; log.innerHTML=""; agentsEl.innerHTML=""; seen.clear(); agents={}; findings={};
+      (d.events||[]).forEach(handle);
+      var run=d.run||{};
+      $("status").className="statuspill done"; $("status-t").textContent="archived";
+      $("m-turns").textContent=run.turns||0; $("m-cost").textContent="$"+(Number(run.cost||0)).toFixed(2);
+    }).catch(function(){});
+  }
+  $("history").onchange=function(){ if(this.value) loadRun(this.value); };
 
   // live stream — or a one-shot static render for screenshots via ?snap
   var SNAP = location.search.indexOf("snap")>=0;
   if(!SNAP){
     var es=new EventSource("/api/events");
-    es.onmessage=function(e){ try{ handle(JSON.parse(e.data)); }catch(_){} };
+    es.onmessage=function(e){ if(viewingHistory) return; try{ handle(JSON.parse(e.data)); }catch(_){} };
   } else {
     fetch("/api/log").then(function(r){return r.json()}).then(function(d){
       (d.events||[]).forEach(handle);
@@ -323,7 +358,7 @@
   });
 
   $("run").onclick=function(){
-    started=false; // next run's seq===1 clears the panes
+    started=false; viewingHistory=false; $("history").value="";
     fetch("/api/scan",{method:"POST"}).then(function(r){return r.json()}).then(poll);
   };
   $("view-report").onclick=function(){ $("report-md").textContent=reportMd; $("report").classList.add("show"); };
@@ -331,7 +366,7 @@
   $("report").onclick=function(e){ if(e.target===$("report")) $("report").classList.remove("show"); };
   document.addEventListener("keydown",function(e){ if(e.key==="Escape") $("report").classList.remove("show"); });
 
-  poll(); if(!SNAP) setInterval(poll,1000);
+  poll(); refreshHistory(); if(!SNAP) setInterval(poll,1000);
 })();
 </script>
 </body>

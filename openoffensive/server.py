@@ -1,14 +1,8 @@
-#!/usr/bin/env python3
-"""OpenOffensive server — the local run dashboard and live event viewer.
+"""The dashboard server — serves the single-page UI, streams the live log over
+Server-Sent Events, exposes a small REST API (start a scan, browse history), and
+boots the bundled vulnerable demo target so there is always something to scan.
 
-Boots the bundled vulnerable target, serves a tiny single-page UI, and streams
-the running scan's events to the browser over Server-Sent Events so you can watch
-the multi-agent pentest happen live. Pure standard library — just run it:
-
-    python3 server.py            # then open the printed URL
-
-No API keys, no Docker, no external target. The only thing the agents touch is
-the demo app this process starts on localhost.
+Pure standard library. Started via ``openoffensive serve`` or ``./run.sh``.
 """
 
 from __future__ import annotations
@@ -17,40 +11,52 @@ import json
 import queue
 import threading
 import time
+import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from openoffensive import skills
-from openoffensive.coordinator import Coordinator
-from openoffensive.runner import run_scan
-from target.vulnerable_app import serve_in_thread
+from . import skills
+from .config import Settings, load_settings
+from .coordinator import Coordinator
+from .demo_target import serve_in_thread
+from .persistence import RunStore
+from .runner import run_scan
 
-BASE_DIR = Path(__file__).resolve().parent
+WEB_DIR = Path(__file__).resolve().parent / "web"
 
 
 class App:
-    """Shared server state: the current run, and the fixed demo target."""
+    """Shared server state: the current run, run history, and the demo target."""
 
-    def __init__(self, target_url: str) -> None:
+    def __init__(self, settings: Settings, target_url: str) -> None:
+        self.settings = settings
         self.target_url = target_url
+        self.store = RunStore(settings.runs_dir)
         self.lock = threading.Lock()
         self.coord: Coordinator | None = None
+        self.scan_id: str | None = None
         self.scan_thread: threading.Thread | None = None
 
     def scanning(self) -> bool:
         return self.scan_thread is not None and self.scan_thread.is_alive()
 
-    def start_scan(self) -> bool:
+    def start_scan(self) -> tuple[bool, str]:
         with self.lock:
             if self.scanning():
-                return False
-            self.coord = Coordinator(self.target_url)
-            self.scan_thread = threading.Thread(
-                target=run_scan, args=(self.coord,), name="scan", daemon=True)
+                return False, ""
+            scan_id = f"scan-{uuid.uuid4().hex[:8]}"
+            coord = Coordinator(self.target_url)
+            self.coord = coord
+            self.scan_id = scan_id
+
+            def _run() -> None:
+                run_scan(coord, settings=self.settings, scan_id=scan_id, store=self.store)
+
+            self.scan_thread = threading.Thread(target=_run, name="scan", daemon=True)
             self.scan_thread.start()
-            return True
+            return True, scan_id
 
 
 APP: App  # set in main()
@@ -71,11 +77,9 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _file(self, path: Path, ctype: str) -> None:
-        if not path.exists():
-            return self._json(404, {"error": "not found"})
-        body = path.read_bytes()
-        self.send_response(200)
+    def _text(self, code: int, text: str, ctype: str = "text/plain; charset=utf-8") -> None:
+        body = text.encode("utf-8")
+        self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -85,33 +89,52 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
-            return self._file(BASE_DIR / "web" / "index.html", "text/html; charset=utf-8")
+            html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+            return self._text(200, html, "text/html; charset=utf-8")
         if path == "/api/state":
-            coord = APP.coord
-            snap = coord.snapshot() if coord else {"status": "idle", "target": APP.target_url,
-                                                   "agents": [], "findings": []}
-            snap["skills"] = skills.describe_catalog()
-            snap["scanning"] = APP.scanning()
-            return self._json(200, snap)
+            return self._json(200, self._state())
         if path == "/api/log":
-            # One-shot dump of the current run's events — used by ?snap render
-            # and handy for debugging. No streaming, so it never holds a socket.
             coord = APP.coord
             events = [e.to_dict() for e in coord.events] if coord else []
-            return self._json(200, {"events": events, "scanning": APP.scanning(),
-                                    "target": APP.target_url})
+            return self._json(200, {"events": events, "scanning": APP.scanning()})
         if path == "/api/events":
             return self._sse()
+        if path == "/api/runs":
+            return self._json(200, {"runs": APP.store.list_runs()})
+        if path.startswith("/api/runs/"):
+            rest = path[len("/api/runs/"):]
+            scan_id = rest.split("/", 1)[0]
+            if rest.endswith("/report"):
+                return self._text(200, APP.store.load_report(scan_id), "text/markdown; charset=utf-8")
+            rec = APP.store.load_run(scan_id)
+            if rec is None:
+                return self._json(404, {"error": "run not found"})
+            return self._json(200, {"run": rec, "events": APP.store.load_events(scan_id)})
         return self._json(404, {"error": "not found"})
 
     def do_POST(self):
         if urlparse(self.path).path == "/api/scan":
-            started = APP.start_scan()
+            started, scan_id = APP.start_scan()
             return self._json(200 if started else 409,
-                              {"ok": started, "target": APP.target_url,
+                              {"ok": started, "scan_id": scan_id, "target": APP.target_url,
                                "message": "scan started" if started
                                else "a scan is already running"})
         return self._json(404, {"error": "not found"})
+
+    def _state(self) -> dict:
+        coord = APP.coord
+        if coord is not None:
+            snap = coord.snapshot()
+        else:
+            snap = {"status": "idle", "target": APP.target_url, "agents": [], "findings": [],
+                    "turns": 0, "cost": 0.0}
+        snap["scan_id"] = APP.scan_id
+        snap["scanning"] = APP.scanning()
+        snap["mode"] = coord.mode if coord else ("llm" if APP.settings.llm_enabled else "scripted")
+        snap["llm_enabled"] = APP.settings.llm_enabled
+        snap["model"] = APP.settings.model
+        snap["skills"] = skills.describe_catalog()
+        return snap
 
     # -- server-sent events: the live log ------------------------------------
     def _sse(self) -> None:
@@ -128,7 +151,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             while True:
                 coord = APP.coord
-                if coord is not last_coord:  # a (new) run appeared — follow it
+                if coord is not last_coord:
                     if last_coord is not None and sub is not None:
                         last_coord.unsubscribe(sub)
                     sub = coord.subscribe() if coord is not None else None
@@ -147,7 +170,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(f"data: {json.dumps(ev.to_dict())}\n\n".encode("utf-8"))
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError, OSError):
-            pass  # browser navigated away / reconnected
+            pass
         finally:
             if last_coord is not None and sub is not None:
                 last_coord.unsubscribe(sub)
@@ -157,21 +180,25 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
 
-def main() -> None:
+def main(open_browser: bool = True) -> None:
     global APP
+    settings = load_settings()
     _, target_url = serve_in_thread("127.0.0.1", 0)
-    APP = App(target_url)
+    APP = App(settings, target_url)
 
-    httpd = ThreadingHTTPServer(("127.0.0.1", 8777), Handler)
-    dash = f"http://127.0.0.1:{httpd.server_address[1]}"
-    print("\n  OpenOffensive — multi-agent pentest POC")
+    httpd = ThreadingHTTPServer((settings.host, settings.port), Handler)
+    dash = f"http://{settings.host}:{httpd.server_address[1]}"
+    mode = "llm (" + settings.model + ")" if settings.llm_enabled else "scripted"
+    print("\n  OpenOffensive — multi-agent pentest dashboard")
     print(f"  dashboard : {dash}")
     print(f"  target    : {target_url}  (bundled vulnerable demo app)")
+    print(f"  mode      : {mode}")
     print("  press Ctrl-C to stop\n")
-    try:
-        webbrowser.open(dash)
-    except Exception:
-        pass
+    if open_browser:
+        try:
+            webbrowser.open(dash)
+        except Exception:
+            pass
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

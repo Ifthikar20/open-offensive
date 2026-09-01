@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openoffensive"
+version = "1.0.0"
+description = "An autonomous, multi-agent AI pentester with a live dashboard."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "OpenOffensive" }]
+keywords = ["security", "pentest", "appsec", "ai", "agents", "dast", "sarif"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Topic :: Security",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+]
+# Scripted mode has ZERO runtime dependencies — it runs on the standard library.
+dependencies = []
+
+[project.optional-dependencies]
+# LLM mode: real model-driven agents.
+llm = ["anthropic>=0.40"]
+dev = ["pytest>=7", "pytest-timeout>=2"]
+
+[project.scripts]
+openoffensive = "openoffensive.cli:main"
+
+[project.urls]
+Homepage = "https://openoffensive.ai"
+Source = "https://github.com/Ifthikar20/open-offensive"
+
+[tool.setuptools]
+packages = ["openoffensive"]
+
+[tool.setuptools.package-data]
+openoffensive = ["web/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+timeout = 60

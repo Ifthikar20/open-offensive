@@ -1,3 +1,11 @@
 __pycache__/
 *.pyc
 .DS_Store
+# local scan artifacts
+runs/
+# packaging / test caches
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.venv/

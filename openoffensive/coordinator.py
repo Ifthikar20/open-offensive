@@ -20,8 +20,9 @@ from .models import AgentState, Finding, LogEvent, now
 
 
 class Coordinator:
-    def __init__(self, target: str) -> None:
+    def __init__(self, target: str, mode: str = "scripted") -> None:
         self.target = target
+        self.mode = mode              # "scripted" | "llm" — how agents decide next actions
         self._lock = threading.Lock()
         self._seq = 0
         self._finding_seq = 0

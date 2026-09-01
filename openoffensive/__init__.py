@@ -1,13 +1,25 @@
-"""OpenOffensive — a tiny, dependency-free demonstration of a multi-agent AI-pentesting architecture.
+"""OpenOffensive — an autonomous, multi-agent AI pentester.
 
-A root orchestrator agent delegates to specialist sub-agents that load skills,
-drive a real HTTP tool layer against a bundled vulnerable target, and file
-findings — every step streamed as a live log. It is a teaching POC, not a
-pentest tool; see the repo README.
+A root orchestrator delegates to specialist sub-agents that load skills, drive a
+real HTTP tool layer against a target, and file validated findings — with a live
+log you can watch. Agents run a scripted methodology out of the box, or reason
+with a real model when one is configured.
 """
 
+__version__ = "1.0.0"
+
+from .config import Settings, load_settings
 from .coordinator import Coordinator
+from .models import Finding, ScanConfig, ScanResult
 from .runner import run_scan
 
-__all__ = ["Coordinator", "run_scan"]
-__version__ = "0.1.0"
+__all__ = [
+    "Coordinator",
+    "Finding",
+    "ScanConfig",
+    "ScanResult",
+    "Settings",
+    "load_settings",
+    "run_scan",
+    "__version__",
+]

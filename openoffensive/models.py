@@ -79,5 +79,50 @@ class Finding:
         return d
 
 
+@dataclass
+class ScanConfig:
+    """Everything needed to launch one scan."""
+    target: str
+    scan_id: str
+    mode: str = "scripted"        # "scripted" | "llm"
+    model: str | None = None      # resolved model id when mode == "llm"
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class ScanResult:
+    """The outcome of a finished (or in-progress) scan — the persisted record."""
+    scan_id: str
+    target: str
+    mode: str
+    status: str                   # running | done | error
+    findings: list[dict[str, Any]] = field(default_factory=list)
+    counts: dict[str, int] = field(default_factory=dict)
+    turns: int = 0
+    cost: float = 0.0
+    started_at: float = 0.0
+    finished_at: float | None = None
+    report_md: str = ""
+
+    @property
+    def duration(self) -> float:
+        return (self.finished_at or now()) - self.started_at
+
+    @property
+    def top_severity(self) -> str:
+        for sev in ("critical", "high", "medium", "low", "info"):
+            if self.counts.get(sev):
+                return sev
+        return "none"
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["duration"] = round(self.duration, 2)
+        d["top_severity"] = self.top_severity
+        return d
+
+
 def now() -> float:
     return time.time()
