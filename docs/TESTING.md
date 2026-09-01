@@ -94,7 +94,11 @@ and click **Run scan**.
 ## Adding a test for a new vuln or agent
 
 When you add a vulnerability to the demo target and a specialist (or a check) that finds
-it (see [EXTENDING.md](EXTENDING.md)), add tests in two layers:
+it (see [EXTENDING.md](EXTENDING.md)), add tests in two layers. `conftest.py` already
+provides the pieces you need — a session-scoped `demo_target` fixture (the base URL), a
+`fast_settings` fixture (instant, scripted, temp runs dir), and a `scanned` fixture (a
+completed scan) — so most tests just request those. The examples below call the
+primitives directly to make the mechanism explicit:
 
 1. **Pin the ground truth on the target.** Start the demo target and assert the raw
    behavior directly — no agents involved:
