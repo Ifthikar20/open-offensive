@@ -93,6 +93,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
     finally:
         if demo_srv is not None:
             demo_srv.shutdown()
+            demo_srv.server_close()
 
     res = result_box.get("res")
     if res is None:
