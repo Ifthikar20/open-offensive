@@ -1,6 +1,6 @@
-"""Juice-Box — a deliberately vulnerable demo web app (for the Strix-Lite POC).
+"""Juice-Box — a deliberately vulnerable demo web app (for the OpenOffensive POC).
 
-This app exists ONLY so the Strix-Lite agents have something safe and local to
+This app exists ONLY so the OpenOffensive agents have something safe and local to
 test. It ships a handful of intentional, textbook weaknesses (reflected XSS, a
 leaked SQL error, an IDOR, missing security headers, a hardcoded secret). It is
 never meant to run on a public interface — it binds to 127.0.0.1 and is the only

@@ -1,4 +1,4 @@
-"""The Coordinator — Strix-Lite's answer to Strix's AgentCoordinator.
+"""The Coordinator — OpenOffensive's central owner of run state.
 
 It is the single owner of run state: the agent graph, the findings store, a
 running event log, and the set of live subscribers (each an SSE client). Every
@@ -29,7 +29,7 @@ class Coordinator:
         self.agents: dict[str, AgentState] = {}
         self.findings: list[Finding] = []
         self._subscribers: list[queue.Queue] = []
-        # A pretend spend meter, so the UI can show the budget idea Strix relies on.
+        # A pretend spend meter, so the UI can show the budget idea a real engine relies on.
         self.turns = 0
         self.cost = 0.0
         self.status = "idle"          # idle|running|done
@@ -91,7 +91,7 @@ class Coordinator:
         self.emit("graph", agent, note or f"status → {status}", status=status)
 
     def bill(self, agent: AgentState, turns: int = 1, cost: float = 0.012) -> None:
-        """Charge a little 'budget' so the run has a visible meter, like Strix."""
+        """Charge a little 'budget' so the run has a visible meter, like a real engine."""
         with self._lock:
             self.turns += turns
             self.cost += cost
@@ -99,7 +99,7 @@ class Coordinator:
     # ---- findings -----------------------------------------------------------
     def add_finding(self, agent: AgentState, finding: Finding) -> Finding:
         with self._lock:
-            # de-dupe on (title, endpoint), like Strix's ReportState
+            # de-dupe on (title, endpoint), like a real findings store
             for existing in self.findings:
                 if existing.title == finding.title and existing.endpoint == finding.endpoint:
                     return existing

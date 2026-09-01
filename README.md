@@ -1,9 +1,8 @@
-# open-offensive — Strix-Lite
+# OpenOffensive
 
-A tiny, **dependency-free** proof-of-concept that demonstrates the architecture of
-[Strix](https://github.com/usestrix/strix) (the open-source autonomous AI pentesting
-tool) in miniature — with a **very simple UI and a live log** so you can watch the
-multi-agent pentest happen in real time.
+**openoffensive.ai** — a tiny, **dependency-free** proof-of-concept of an autonomous,
+**multi-agent AI pentester**, with a **very simple UI and a live log** so you can watch
+the whole engagement happen in real time.
 
 A **root orchestrator** agent plans an engagement and delegates to **specialist
 sub-agents** that run in parallel. Each specialist **loads skills**, drives a **tool
@@ -11,13 +10,19 @@ layer** that makes **real HTTP requests** against a bundled, deliberately-vulner
 demo app, calibrates severity, and **files findings** — every step streamed to the
 browser over Server-Sent Events.
 
-> It's a **teaching POC**, not a pentest tool. The "AI reasoning" is a scripted
-> methodology (no LLM/API key needed), and the only target it ever touches is the
-> demo app it starts on `127.0.0.1`.
+> It's a **teaching POC**, not a production pentest tool. The "AI reasoning" is a
+> scripted methodology (no LLM/API key needed), and the only target it ever touches is
+> the demo app it starts on `127.0.0.1`.
 
 ## Run it
 
 No install, no dependencies, no Docker, no API keys — just Python 3.8+:
+
+```bash
+./run.sh
+```
+
+or equivalently:
 
 ```bash
 python3 server.py
@@ -32,27 +37,28 @@ It starts the vulnerable demo target, opens a dashboard (default
 - **Findings** — each validated issue with severity, CVSS, evidence, and a fix
   (click to expand). A **report** is compiled when the run finishes.
 
-## How it maps to real Strix
+## Architecture
 
-The whole point of the POC is that every piece is a small stand-in for a real Strix
-component you can read about in the [architecture write-up](#architecture-write-up):
+Every piece is a small, readable stand-in for a component of a real autonomous
+pentest engine. The design **references the open-source Strix project**
+([usestrix/strix](https://github.com/usestrix/strix)) — OpenOffensive re-implements
+the same ideas at POC scale so they're easy to follow:
 
-| Strix-Lite (`strixlite/`) | Real Strix |
+| OpenOffensive (`openoffensive/`) | Reference pattern |
 | --- | --- |
-| `coordinator.py` — agent graph, event bus, findings store, resume snapshot idea | `strix/core/agents.py` **AgentCoordinator** |
-| `agents.py` — root orchestrator + specialist sub-agents, lifecycle tools | `strix/core/execution.py` + the graph-of-agents |
-| `tools.py` — real HTTP probes, host allowlist | sandbox `exec_command` + `strix/tools/*` |
-| `skills.py` — knowledge packs loaded on demand | `strix/skills/*` + the `load_skill` tool |
-| `models.py` — Finding with CVSS/severity | `create_vulnerability_report` + CVSS |
-| `reporting.py` — final markdown report | `finish_scan` → `penetration_test_report.md` |
-| `server.py` — local dashboard + live event stream | `strix view` (local run viewer) |
-| `target/vulnerable_app.py` | the target you point Strix at (here, bundled & safe) |
+| `coordinator.py` — agent graph, event bus, findings store, resume-snapshot idea | a multi-agent coordinator |
+| `agents.py` — root orchestrator + specialist sub-agents, lifecycle tools | a graph of agents |
+| `tools.py` — real HTTP probes, host allowlist | sandboxed tool execution |
+| `skills.py` — knowledge packs loaded on demand | a load-on-demand skills library |
+| `models.py` — Finding with CVSS/severity | validated findings + CVSS |
+| `reporting.py` — final markdown report | `finish_scan` → report artifacts |
+| `server.py` — local dashboard + live event stream | a local run viewer |
+| `target/vulnerable_app.py` | the target under test (here, bundled & safe) |
 
-Key shared ideas the live log makes visible:
+Key ideas the live log makes visible:
 
 - **The root only orchestrates** — it delegates every hands-on step to a sub-agent.
-- **Specialists run in parallel**, so their logs interleave (real threads here;
-  async tasks in Strix).
+- **Specialists run in parallel**, so their logs interleave (real threads here).
 - **Plain text never ends a turn** — agents finish through explicit lifecycle
   events (`agent_finish` / `finish_scan`).
 - **Knowledge is data** — an agent loads the relevant skill *before* it acts.
@@ -63,9 +69,10 @@ Key shared ideas the live log makes visible:
 
 ```
 open-offensive/
+├── run.sh                    # one-command launcher
 ├── server.py                 # dashboard + SSE live-log stream; boots the target
-├── strixlite/                # the engine
-│   ├── coordinator.py        # graph + event bus + findings store  (≈ AgentCoordinator)
+├── openoffensive/            # the engine
+│   ├── coordinator.py        # agent graph + event bus + findings store
 │   ├── agents.py             # RootAgent + Recon / Injection / Access specialists
 │   ├── tools.py              # real HTTP tool layer (localhost-only)
 │   ├── skills.py             # on-demand knowledge packs
@@ -96,13 +103,6 @@ asset. It binds to loopback only and is vulnerable **on purpose** — never depl
 
 ## Safety
 
-This project performs **authorized security testing against its own bundled demo app
+OpenOffensive performs **authorized security testing against its own bundled demo app
 on localhost only**. Do not aim it (or any pentesting tool) at systems you do not own
 or lack explicit, written permission to test.
-
-## Architecture write-up
-
-For the full walkthrough of how real Strix works — the OpenAI Agents SDK foundation,
-the Docker sandbox, Caido proxy interception, the skills system, and the reporting
-pipeline — see the companion architecture document referenced with this project, or
-the source at [usestrix/strix](https://github.com/usestrix/strix).

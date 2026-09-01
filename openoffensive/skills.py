@@ -1,6 +1,6 @@
 """Skills — pentesting know-how as data, loaded on demand.
 
-In real Strix a skill is a Markdown knowledge pack injected into the agent's
+In a full engine a skill is a Markdown knowledge pack injected into the agent's
 prompt (a catalog is advertised, and the agent pulls the full text with a
 `load_skill` tool). Here we keep the same shape at POC scale: a catalog of short
 playbooks an agent 'loads' before it starts a specialised workflow, so the live

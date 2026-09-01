@@ -1,6 +1,6 @@
 """The agents — a root orchestrator that delegates to specialist sub-agents.
 
-This is the miniature of Strix's "graph of agents": the root does no hands-on
+This is a miniature "graph of agents": the root does no hands-on
 testing itself; it plans, spawns specialists (each in its own thread, running in
 parallel), waits for them, then compiles the report. Each specialist loads the
 skills for its niche, drives the tool layer against the target, calibrates
@@ -155,7 +155,7 @@ class InjectionAgent(BaseAgent):
             )
 
         self.load_skill("xss")
-        marker = "<script>st1x()</script>"
+        marker = "<script>xss1()</script>"
         self.think(f"spraying a marked XSS payload into /search?q= ({marker})")
         r = self.tools.http_get("/search", {"q": marker}, note="XSS probe on q=")
         if marker in r.body:

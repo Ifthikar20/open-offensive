@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Strix-Lite server — the local dashboard, à la `strix view`.
+"""OpenOffensive server — the local run dashboard and live event viewer.
 
 Boots the bundled vulnerable target, serves a tiny single-page UI, and streams
 the running scan's events to the browser over Server-Sent Events so you can watch
@@ -22,9 +22,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from strixlite import skills
-from strixlite.coordinator import Coordinator
-from strixlite.runner import run_scan
+from openoffensive import skills
+from openoffensive.coordinator import Coordinator
+from openoffensive.runner import run_scan
 from target.vulnerable_app import serve_in_thread
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -164,7 +164,7 @@ def main() -> None:
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 8777), Handler)
     dash = f"http://127.0.0.1:{httpd.server_address[1]}"
-    print("\n  Strix-Lite — multi-agent pentest POC")
+    print("\n  OpenOffensive — multi-agent pentest POC")
     print(f"  dashboard : {dash}")
     print(f"  target    : {target_url}  (bundled vulnerable demo app)")
     print("  press Ctrl-C to stop\n")

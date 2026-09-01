@@ -50,7 +50,7 @@ class Toolbox:
         self._guard(url)
         self.coord.bill(self.agent)
         label = note or f"GET {path}" + (f"?{urllib.parse.urlencode(params)}" if params else "")
-        req = urllib.request.Request(url, headers={"User-Agent": "strix-lite/0.1"})
+        req = urllib.request.Request(url, headers={"User-Agent": "openoffensive/0.1"})
         t0 = time.time()
         try:
             with urllib.request.urlopen(req, timeout=5) as r:

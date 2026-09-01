@@ -1,4 +1,4 @@
-"""Turn the findings store into a final report — Strix's `finish_scan` moment."""
+"""Turn the findings store into a final report — the `finish_scan` moment."""
 
 from __future__ import annotations
 

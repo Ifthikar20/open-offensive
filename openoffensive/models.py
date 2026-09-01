@@ -1,6 +1,6 @@
-"""Shared data types for the Strix-Lite engine.
+"""Shared data types for the OpenOffensive engine.
 
-These mirror, in miniature, the records real Strix keeps: a stream of log
+These mirror, in miniature, the records a real pentest engine keeps: a stream of log
 events, an agent graph, and validated findings with a severity/CVSS score.
 """
 
@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass, field, asdict
 from typing import Any
 
-# Severity → representative CVSS base score. Real Strix computes a full CVSS
+# Severity → representative CVSS base score. A production engine computes a full CVSS
 # vector; the POC keeps a simple, honest mapping so the UI can rank findings.
 SEVERITY_CVSS = {
     "critical": 9.4,

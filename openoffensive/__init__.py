@@ -1,4 +1,4 @@
-"""Strix-Lite — a tiny, dependency-free demonstration of the Strix architecture.
+"""OpenOffensive — a tiny, dependency-free demonstration of a multi-agent AI-pentesting architecture.
 
 A root orchestrator agent delegates to specialist sub-agents that load skills,
 drive a real HTTP tool layer against a bundled vulnerable target, and file
