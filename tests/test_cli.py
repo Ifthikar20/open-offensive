@@ -117,6 +117,59 @@ def test_doctor_returns_one_without_docker(capsys):
     assert "UNAVAILABLE" in out
 
 
+def _fake_anthropic(monkeypatch, *, raises=None):
+    """Install a minimal fake `anthropic` module; its create() raises `raises`."""
+    import sys
+    import types
+    mod = types.ModuleType("anthropic")
+
+    class _Msgs:
+        def create(self, **kw):
+            if raises is not None:
+                raise raises
+            return object()
+
+    class _Client:
+        messages = _Msgs()
+
+        def __init__(self, *a, **k):
+            pass
+
+    mod.Anthropic = _Client
+    monkeypatch.setitem(sys.modules, "anthropic", mod)
+
+
+def test_check_model_api_ok(monkeypatch):
+    from openoffensive import Settings
+    _fake_anthropic(monkeypatch)
+    ok, msg = cli._check_model_api(Settings(model="claude-probe"))
+    assert ok is True
+    assert "claude-probe" in msg
+
+
+def test_check_model_api_surfaces_underlying_cause(monkeypatch):
+    # The SDK hides the real reason behind "Connection error."; doctor must reveal it.
+    from openoffensive import Settings
+    err = RuntimeError("Connection error.")
+    err.__cause__ = ValueError("certificate verify failed")
+    _fake_anthropic(monkeypatch, raises=err)
+    ok, msg = cli._check_model_api(Settings(model="claude-probe"))
+    assert ok is False
+    assert "Connection error" in msg
+    assert "certificate verify failed" in msg   # the hidden cause is now visible
+
+
+def test_doctor_reports_model_api_when_key_present(monkeypatch, capsys):
+    from openoffensive.config import reset_settings_cache
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    reset_settings_cache()
+    _fake_anthropic(monkeypatch)               # API reachable
+    cli.main(["doctor"])
+    out = capsys.readouterr().out
+    assert "model API" in out
+    assert "reachable" in out
+
+
 # ---------------------------------------------------------------------------
 # list
 # ---------------------------------------------------------------------------

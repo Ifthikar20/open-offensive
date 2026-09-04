@@ -113,6 +113,25 @@ def cmd_scan(args: argparse.Namespace) -> int:
     return 2 if len(res.findings) > 0 else 0
 
 
+def _check_model_api(settings) -> tuple[bool, str]:
+    """Make a tiny real API call so a broken model connection shows up here as one
+    clear line, instead of later as three opaque 'crashed: Connection error' rows.
+    Surfaces the underlying cause (SSL, auth, model-not-found) the SDK hides."""
+    try:
+        import anthropic
+    except Exception:  # noqa: BLE001
+        return False, "anthropic SDK not installed (pip install 'openoffensive[llm]')"
+    try:
+        anthropic.Anthropic().messages.create(
+            model=settings.model, max_tokens=4,
+            messages=[{"role": "user", "content": "ping"}])
+        return True, f"OK — {settings.model} reachable"
+    except Exception as e:  # noqa: BLE001
+        cause = getattr(e, "__cause__", None)
+        detail = f" — {type(cause).__name__}: {cause}" if cause else ""
+        return False, f"{type(e).__name__}: {e}{detail}"
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     from .sandbox import SANDBOX_DIR, docker_available, open_sandbox
     settings = load_settings()
@@ -121,6 +140,12 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     print(f"sandbox image   : {settings.sandbox_image}")
     print(f"ANTHROPIC_API_KEY: {'set' if settings.api_key_present else 'not set'}")
     print(f"mode            : {'llm (' + settings.model + ')' if (settings.llm_enabled and ok) else 'scripted'}")
+    if settings.api_key_present and not args.no_api_check:
+        api_ok, api_msg = _check_model_api(settings)
+        print(f"model API       : {api_msg}")
+        if not api_ok:
+            print("  (the agents call the model from the host; fix this or they crash on "
+                  "the first step)", file=sys.stderr)
     if not ok:
         print("\nDocker is required. Start the daemon, then re-run.", file=sys.stderr)
         return 1
@@ -184,6 +209,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     dr = sub.add_parser("doctor", help="check Docker/LLM readiness; optionally build the image")
     dr.add_argument("--build", action="store_true", help="build/pull the sandbox image now")
+    dr.add_argument("--no-api-check", action="store_true",
+                    help="skip the live model API test (no token spend)")
     dr.set_defaults(func=cmd_doctor)
 
     sv = sub.add_parser("serve", help="start the live dashboard")
