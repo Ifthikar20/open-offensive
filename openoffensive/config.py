@@ -51,6 +51,10 @@ class Settings:
     max_steps: int = 24          # per-agent tool-call budget in LLM mode
     api_key_present: bool = False
 
+    # --- sandbox (Docker) ---
+    sandbox_image: str = "openoffensive-sandbox:kali"
+    sandbox_network: str = ""     # empty = docker default bridge
+
     # --- run persistence ---
     runs_dir: str = "runs"
 
@@ -85,6 +89,8 @@ def load_settings() -> Settings:
         max_tokens=_env_int("OPENOFFENSIVE_MAX_TOKENS", 4096),
         max_steps=_env_int("OPENOFFENSIVE_MAX_STEPS", 24),
         api_key_present=bool(_env("ANTHROPIC_API_KEY")),
+        sandbox_image=_env("OPENOFFENSIVE_SANDBOX_IMAGE") or "openoffensive-sandbox:kali",
+        sandbox_network=_env("OPENOFFENSIVE_SANDBOX_NETWORK"),
         runs_dir=_env("OPENOFFENSIVE_RUNS_DIR") or "runs",
         scope_allow=tuple(
             h for h in (s.strip() for s in _env("OPENOFFENSIVE_SCOPE").split(",")) if h

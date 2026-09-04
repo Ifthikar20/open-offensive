@@ -183,8 +183,14 @@ class Handler(BaseHTTPRequestHandler):
 def main(open_browser: bool = True) -> None:
     global APP
     settings = load_settings()
-    _, target_url = serve_in_thread("127.0.0.1", 0)
+    # Bind the demo on all interfaces so the scan container can reach it via
+    # host.docker.internal; point the scan there.
+    demo_srv, _ = serve_in_thread("0.0.0.0", 0)
+    target_url = f"http://host.docker.internal:{demo_srv.server_address[1]}"
     APP = App(settings, target_url)
+
+    from .sandbox import docker_available
+    docker_ok, docker_reason = docker_available()
 
     httpd = ThreadingHTTPServer((settings.host, settings.port), Handler)
     dash = f"http://{settings.host}:{httpd.server_address[1]}"
@@ -193,6 +199,7 @@ def main(open_browser: bool = True) -> None:
     print(f"  dashboard : {dash}")
     print(f"  target    : {target_url}  (bundled vulnerable demo app)")
     print(f"  mode      : {mode}")
+    print(f"  docker    : {'OK' if docker_ok else 'UNAVAILABLE — ' + docker_reason + ' (scans need Docker)'}")
     print("  press Ctrl-C to stop\n")
     if open_browser:
         try:

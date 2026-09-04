@@ -34,10 +34,11 @@ Homepage = "https://openoffensive.ai"
 Source = "https://github.com/Ifthikar20/open-offensive"
 
 [tool.setuptools]
-packages = ["openoffensive"]
+packages = ["openoffensive", "openoffensive.sandbox"]
 
 [tool.setuptools.package-data]
 openoffensive = ["web/*.html"]
+"openoffensive.sandbox" = ["Dockerfile"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

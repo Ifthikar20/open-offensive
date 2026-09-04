@@ -1,6 +1,8 @@
-"""Command-line interface: ``openoffensive <scan|serve|list|report>``.
+"""Command-line interface: ``openoffensive <scan|serve|list|report|doctor>``.
 
 Exit codes for ``scan`` (CI-friendly): 0 = clean, 1 = error, 2 = findings.
+The real path needs Docker (and an LLM key for the agentic mode); ``doctor``
+checks the environment and can pre-build the sandbox image.
 """
 
 from __future__ import annotations
@@ -18,18 +20,19 @@ from .config import Settings, load_settings
 from .coordinator import Coordinator
 from .demo_target import serve_in_thread
 from .persistence import RunStore
-from .runner import run_scan
+from .runner import classify_target, run_scan
 
 _GLYPH = {"system": "·", "phase": "▸", "think": "·", "skill": "◆", "tool": "→",
           "finding": "⚑", "graph": "○", "report": "★", "error": "✕"}
+_LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1", "host.docker.internal")
 
 
-def _is_loopback(target: str) -> bool:
+def _is_local(target: str) -> bool:
     host = urlparse(target if "//" in target else "//" + target).hostname or ""
-    return host in ("127.0.0.1", "localhost", "::1") or host.endswith(".localhost")
+    return host in _LOCAL_HOSTS or host.endswith(".localhost")
 
 
-def _settings_for(args: argparse.Namespace, *, fast: bool = False) -> Settings:
+def _settings_for(args: argparse.Namespace) -> Settings:
     s = load_settings()
     repl: dict = {}
     if getattr(args, "mode", None):
@@ -38,8 +41,6 @@ def _settings_for(args: argparse.Namespace, *, fast: bool = False) -> Settings:
         repl["model"] = args.model
     if getattr(args, "runs_dir", None):
         repl["runs_dir"] = args.runs_dir
-    if fast:
-        repl["speed"] = 0.0
     return dataclasses.replace(s, **repl) if repl else s
 
 
@@ -65,21 +66,28 @@ def _stream_and_run(coord: Coordinator, run_fn) -> None:
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
-    settings = _settings_for(args, fast=not args.watch)
+    settings = _settings_for(args)
     store = RunStore(settings.runs_dir)
     scan_id = f"scan-{uuid.uuid4().hex[:8]}"
 
     demo_srv = None
     if args.target:
-        target = args.target if "//" in args.target else "http://" + args.target
-        if not _is_loopback(target) and not args.authorized:
-            print("Refusing to scan a non-loopback target without authorization.\n"
-                  "Only scan systems you own or have explicit written permission to test.\n"
-                  "Re-run with --authorized once you have confirmed you are in scope.",
-                  file=sys.stderr)
-            return 1
+        target = args.target
+        if classify_target(target) == "url":
+            if "//" not in target:
+                target = "http://" + target
+            if not _is_local(target) and not args.authorized:
+                print("Refusing to scan a non-local target without authorization.\n"
+                      "Only scan systems you own or have explicit written permission to test.\n"
+                      "Re-run with --authorized once you have confirmed you are in scope.",
+                      file=sys.stderr)
+                return 1
     else:
-        demo_srv, target = serve_in_thread("127.0.0.1", 0)
+        # Start the bundled demo on all interfaces so the container can reach it
+        # via host.docker.internal, then point the scan there.
+        demo_srv, _ = serve_in_thread("0.0.0.0", 0)
+        port = demo_srv.server_address[1]
+        target = f"http://host.docker.internal:{port}"
         print(f"  (no target given — scanning the bundled demo app at {target})\n")
 
     coord = Coordinator(target)
@@ -103,6 +111,29 @@ def cmd_scan(args: argparse.Namespace) -> int:
     if res.status == "error":
         return 1
     return 2 if len(res.findings) > 0 else 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    from .sandbox import SANDBOX_DIR, docker_available, open_sandbox
+    settings = load_settings()
+    ok, reason = docker_available()
+    print(f"docker daemon   : {'OK' if ok else 'UNAVAILABLE — ' + reason}")
+    print(f"sandbox image   : {settings.sandbox_image}")
+    print(f"ANTHROPIC_API_KEY: {'set' if settings.api_key_present else 'not set'}")
+    print(f"mode            : {'llm (' + settings.model + ')' if (settings.llm_enabled and ok) else 'scripted'}")
+    if not ok:
+        print("\nDocker is required. Start the daemon, then re-run.", file=sys.stderr)
+        return 1
+    if args.build:
+        print("\nbuilding the sandbox image (first time pulls Kali — slow)…")
+        sb = open_sandbox("doctor", settings, emit=lambda level, msg: print("  " + msg))
+        try:
+            sb.ensure_image(dockerfile_dir=SANDBOX_DIR)
+            print("image ready.")
+        except Exception as e:  # noqa: BLE001
+            print(f"image build/pull failed: {e}", file=sys.stderr)
+            return 1
+    return 0
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -137,19 +168,23 @@ def cmd_report(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="openoffensive",
-        description="OpenOffensive — a multi-agent AI pentester with a live dashboard.")
+        description="OpenOffensive — a multi-agent AI pentester that runs in a Kali container.")
     p.add_argument("--version", action="version", version=f"openoffensive {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
 
-    sc = sub.add_parser("scan", help="run a headless scan and print findings")
-    sc.add_argument("target", nargs="?", help="URL/host to scan (default: bundled demo app)")
-    sc.add_argument("--mode", choices=["auto", "llm", "scripted"], help="override LLM mode")
+    sc = sub.add_parser("scan", help="run a scan (bundled demo, a git repo, a URL, or a dir)")
+    sc.add_argument("target", nargs="?",
+                    help="git repo URL, live URL/host, or local dir (default: bundled demo)")
+    sc.add_argument("--mode", choices=["auto", "llm", "scripted"], help="override run mode")
     sc.add_argument("--model", help="override the model id (llm mode)")
     sc.add_argument("--runs-dir", dest="runs_dir", help="where to write run artifacts")
-    sc.add_argument("--watch", action="store_true", help="pace the log for human viewing")
     sc.add_argument("--authorized", action="store_true",
-                    help="confirm you are authorized to test a non-loopback target")
+                    help="confirm you are authorized to test a non-local URL target")
     sc.set_defaults(func=cmd_scan)
+
+    dr = sub.add_parser("doctor", help="check Docker/LLM readiness; optionally build the image")
+    dr.add_argument("--build", action="store_true", help="build/pull the sandbox image now")
+    dr.set_defaults(func=cmd_doctor)
 
     sv = sub.add_parser("serve", help="start the live dashboard")
     sv.add_argument("--no-open", action="store_true", help="do not open a browser")

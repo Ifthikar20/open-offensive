@@ -1,107 +1,57 @@
-"""The tool layer — one registry, shared by scripted and LLM-driven agents.
+"""The tool layer — one registry, executed INSIDE the per-scan container.
 
-A tool is a name + JSON-schema + handler. The same handlers back both execution
-modes: the scripted specialists call them in a fixed methodology, and the LLM
-loop calls them by name with the model's arguments. Every HTTP call is real and
-goes through a host allowlist, so the agents can only reach the scan target (plus
-any hosts an operator has explicitly authorised via scope).
+The core tool is ``run_command``: the model (or a scripted playbook) runs shell
+commands in the Kali sandbox — nmap, curl, sqlmap, nikto, gobuster, or grepping
+the target's source under ``/workspace`` — and the stdout/exit code come back as
+the next observation. ``report_finding`` files a validated issue; ``finish`` ends
+the agent. The same registry backs both the LLM loop and the scripted playbook.
 """
 
 from __future__ import annotations
 
-import time
-import urllib.error
-import urllib.parse
-import urllib.request
+import shlex
 from dataclasses import dataclass
 from typing import Any, Callable
-from urllib.parse import urlparse
 
 from .coordinator import Coordinator
-from .models import Finding, AgentState
+from .models import AgentState, Finding
 
-_BODY_SNIPPET = 900          # chars of response body shown back to an agent
-_HEADERS_SHOWN = ("server", "content-type", "location", "set-cookie",
-                  "content-security-policy", "x-frame-options", "x-content-type-options")
-
-
-@dataclass
-class Response:
-    status: int
-    headers: dict[str, str]
-    body: str
-    url: str
+_MAX_EXEC_TIMEOUT = 600
 
 
 class ToolContext:
-    """Per-agent handle the tool handlers act through."""
+    """Per-agent handle: the shared sandbox, the in-scope target, and logging."""
 
     def __init__(self, coord: Coordinator, agent: AgentState, settings: Any,
-                 target: str | None = None) -> None:
+                 sandbox: Any, target: str) -> None:
         self.coord = coord
         self.agent = agent
         self.settings = settings
-        self.target = (target or coord.target).rstrip("/")
-        host = urlparse(self.target).hostname
-        self.allowed_hosts = {h for h in (host, *getattr(settings, "scope_allow", ())) if h}
+        self.sandbox = sandbox
+        self.target = target
         self.finished = False
         self.finish_summary = ""
-
-    # -- pacing (0 in tests, ~human speed in the dashboard) -------------------
-    def pace(self, seconds: float) -> None:
-        s = seconds * float(getattr(self.settings, "speed", 1.0))
-        if s > 0:
-            time.sleep(s)
 
     # -- narration ------------------------------------------------------------
     def think(self, msg: str) -> None:
         self.coord.emit("think", self.agent, msg)
-        self.pace(0.3)
 
     def phase(self, msg: str) -> None:
         self.coord.emit("phase", self.agent, msg)
-        self.pace(0.2)
 
-    # -- real HTTP ------------------------------------------------------------
-    def http(self, path: str, method: str = "GET",
-             params: dict | None = None) -> Response:
-        if not path.startswith("/"):
-            path = "/" + path
-        url = self.target + path
-        if params:
-            url += "?" + urllib.parse.urlencode(params)
-        host = urlparse(url).hostname
-        label = f"{method} {path}" + (f"?{urllib.parse.urlencode(params)}" if params else "")
-        if host not in self.allowed_hosts:
-            self.coord.emit("tool", self.agent, f"{label} → BLOCKED (out of scope: {host})",
-                            ok=False)
-            return Response(0, {}, f"blocked: host {host} is out of scope", url)
-        self.coord.bill(self.agent)
-        req = urllib.request.Request(url, method=method.upper(),
-                                     headers={"User-Agent": "openoffensive/1.0"})
-        t0 = time.time()
-        try:
-            with urllib.request.urlopen(req, timeout=8) as r:
-                body = r.read().decode("utf-8", "replace")
-                resp = Response(r.status, {k.lower(): v for k, v in r.headers.items()},
-                                body, url)
-        except urllib.error.HTTPError as e:
-            body = e.read().decode("utf-8", "replace")
-            resp = Response(e.code, {k.lower(): v for k, v in (e.headers or {}).items()},
-                            body, url)
-        except Exception as e:  # noqa: BLE001 — a failed probe is a result, not a crash
-            self.coord.emit("tool", self.agent, f"{label} → ERROR {e}", ok=False)
-            return Response(0, {}, f"error: {e}", url)
-        ms = int((time.time() - t0) * 1000)
-        self.coord.emit("tool", self.agent, f"{label} → {resp.status} ({len(body)}b, {ms}ms)",
-                        ok=True, status=resp.status)
-        self.pace(0.35)
-        return resp
+    # -- the sandbox ----------------------------------------------------------
+    def run(self, command: str, timeout: float = 180) -> Any:
+        """Run a command in the container; log it and its result. Returns ExecResult."""
+        self.coord.emit("tool", self.agent, f"$ {command}")
+        res = self.sandbox.exec(command, timeout=min(int(timeout or 180), _MAX_EXEC_TIMEOUT))
+        tag = "timeout" if res.timed_out else f"exit {res.exit_code}"
+        self.coord.emit("tool", self.agent, f"  → {tag}, {len(res.stdout)}b", ok=res.ok)
+        return res
 
     # -- findings -------------------------------------------------------------
     def report(self, *, title: str, severity: str, endpoint: str, evidence: str,
                remediation: str, cwe: str = "", poc: str = "") -> Finding:
-        severity = severity.lower().strip()
+        severity = (severity or "info").lower().strip()
         if severity not in ("critical", "high", "medium", "low", "info"):
             severity = "info"
         finding = Finding(id="", title=title, severity=severity, target=self.target,
@@ -125,20 +75,15 @@ class Tool:
                 "input_schema": self.input_schema}
 
 
-def _fmt_response(resp: Response) -> str:
-    hdrs = "\n".join(f"  {k}: {resp.headers[k]}" for k in _HEADERS_SHOWN if k in resp.headers)
-    body = resp.body[:_BODY_SNIPPET]
-    if len(resp.body) > _BODY_SNIPPET:
-        body += f"\n… ({len(resp.body) - _BODY_SNIPPET} more bytes)"
-    return (f"HTTP {resp.status} for {resp.url}\n"
-            f"headers:\n{hdrs or '  (none of interest)'}\n"
-            f"body:\n{body}")
+def tool_run_command(ctx: ToolContext, command: str, timeout: int = 180) -> str:
+    if not command or not command.strip():
+        return "error: command must be a non-empty string"
+    return ctx.run(command, timeout=timeout).combined()
 
 
-def tool_http_request(ctx: ToolContext, path: str, method: str = "GET",
-                      params: dict | None = None) -> str:
-    resp = ctx.http(path, method=method, params=params or None)
-    return _fmt_response(resp)
+def tool_read_file(ctx: ToolContext, path: str) -> str:
+    res = ctx.run(f"cat {shlex.quote(path)}")
+    return res.combined()
 
 
 def tool_report_finding(ctx: ToolContext, title: str, severity: str, endpoint: str,
@@ -153,9 +98,9 @@ def tool_load_skill(ctx: ToolContext, name: str) -> str:
     from . import skills
     body = skills.load(name)
     if not body:
-        return f"No skill named '{name}'. Available: {', '.join(s['name'] for s in skills.describe_catalog())}"
+        catalog = ", ".join(s["name"] for s in skills.describe_catalog())
+        return f"No skill named '{name}'. Available: {catalog}"
     ctx.coord.emit("skill", ctx.agent, f"load_skill({name})")
-    ctx.pace(0.2)
     return f"# skill: {name}\n{body}"
 
 
@@ -171,41 +116,45 @@ def tool_finish(ctx: ToolContext, summary: str = "") -> str:
 
 
 REGISTRY: dict[str, Tool] = {
-    "http_request": Tool(
-        "http_request",
-        "Send a real HTTP request to an in-scope endpoint and get the status, "
-        "selected headers, and response body back. Use this to probe the target: "
-        "fetch pages, submit parameters, walk API ids, and inspect responses.",
+    "run_command": Tool(
+        "run_command",
+        "Run a shell command INSIDE the sandbox container (a Kali box with a pentest "
+        "toolset). Use it to run tools (nmap, curl, sqlmap, nikto, gobuster, whatweb, "
+        "python3) against the in-scope target, and to read/grep the target's source "
+        "under /workspace. Returns combined stdout+stderr and the exit code. One command "
+        "per call; chain with && or pipes as needed.",
         {
             "type": "object",
             "properties": {
-                "path": {"type": "string",
-                         "description": "Path on the target, e.g. '/login' or '/api/user/1'. "
-                                        "Include a query string or pass 'params'."},
-                "method": {"type": "string", "enum": ["GET", "POST", "PUT", "DELETE", "HEAD"],
-                           "default": "GET"},
-                "params": {"type": "object",
-                           "description": "Query parameters as a flat object of strings.",
-                           "additionalProperties": {"type": "string"}},
+                "command": {"type": "string", "description": "The shell command to run."},
+                "timeout": {"type": "integer",
+                            "description": "Seconds before the command is killed (default 180, max 600)."},
             },
-            "required": ["path"],
+            "required": ["command"],
         },
-        tool_http_request,
+        tool_run_command,
+    ),
+    "read_file": Tool(
+        "read_file",
+        "Read a file inside the sandbox (e.g. source under /workspace). Convenience "
+        "wrapper over `cat`.",
+        {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]},
+        tool_read_file,
     ),
     "report_finding": Tool(
         "report_finding",
-        "File a validated vulnerability. Only report something you have evidence "
-        "for from an actual response. Include a concrete proof-of-concept and fix.",
+        "File a validated vulnerability. Only report something you proved from real tool "
+        "output. Include a concrete proof-of-concept and a fix.",
         {
             "type": "object",
             "properties": {
                 "title": {"type": "string"},
                 "severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
-                "endpoint": {"type": "string", "description": "Where it lives, e.g. '/search'."},
-                "evidence": {"type": "string", "description": "What in the response proves it."},
+                "endpoint": {"type": "string", "description": "Where it lives, e.g. '/login' or a file path."},
+                "evidence": {"type": "string", "description": "What in the output proves it."},
                 "remediation": {"type": "string", "description": "How to fix it."},
                 "cwe": {"type": "string", "description": "CWE id, e.g. 'CWE-89'."},
-                "poc": {"type": "string", "description": "A one-line reproduction, e.g. a curl."},
+                "poc": {"type": "string", "description": "A one-line reproduction."},
             },
             "required": ["title", "severity", "endpoint", "evidence", "remediation"],
         },
@@ -213,11 +162,9 @@ REGISTRY: dict[str, Tool] = {
     ),
     "load_skill": Tool(
         "load_skill",
-        "Load a knowledge pack (playbook) for a vulnerability class or technique "
-        "before testing it. Call list_skills to see what is available.",
-        {"type": "object",
-         "properties": {"name": {"type": "string"}},
-         "required": ["name"]},
+        "Load a knowledge pack (playbook) for a vulnerability class before testing it. "
+        "Call list_skills to see what is available.",
+        {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
         tool_load_skill,
     ),
     "list_skills": Tool(
@@ -228,10 +175,9 @@ REGISTRY: dict[str, Tool] = {
     ),
     "finish": Tool(
         "finish",
-        "Call when your assigned testing is complete. Provide a short summary of "
-        "what you covered and found.",
-        {"type": "object",
-         "properties": {"summary": {"type": "string"}}},
+        "Call when your assigned testing is complete. Provide a short summary of what you "
+        "covered and found.",
+        {"type": "object", "properties": {"summary": {"type": "string"}}},
         tool_finish,
     ),
 }
