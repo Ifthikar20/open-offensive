@@ -139,9 +139,14 @@ openoffensive doctor [--build]
 | Option | Description |
 | --- | --- |
 | `--build` | Build (or pull) the sandbox image now, instead of on the first scan. |
+| `--no-api-check` | Skip the live model API test (no token spend). |
 
 Prints Docker daemon status, the sandbox image tag, whether a key is set, and the resolved
-mode. Exits `1` if Docker is unavailable.
+mode. Exits `1` if Docker is unavailable. When a key is present it also makes a **tiny real
+model call** and prints a `model API` line — `OK — <model> reachable`, or the actual failure
+(SSL/cert, auth, model-not-found) the SDK otherwise hides behind "Connection error." Since the
+agents call the model from the host on their first step, a failure here is why an LLM scan would
+otherwise crash — fix it before scanning.
 
 ### `serve` — start the live dashboard
 
@@ -228,6 +233,27 @@ The mode is resolved by `runner.resolve_mode`: if LLM mode is requested but the 
 missing, the scan falls back to scripted and logs a note explaining why. Both modes run inside
 the container and use the same tools; only *who chooses each command* differs. See
 [ARCHITECTURE.md](ARCHITECTURE.md#the-two-run-modes) for the full resolution logic.
+
+**Loud failure (no silent empty scans).** Once LLM mode is active, the run **preflights the
+model** before building the container; if it can't be reached (SSL/cert, auth, wrong model), the
+scan **stops with a clear error and exit `1`** instead of the old behavior — three opaque
+`crashed: Connection error` lines followed by a misleading `done / 0 findings / exit 0`. As a
+backstop, a run where every specialist crashes and nothing is found is also reported as `error`.
+Run `openoffensive doctor` first to see the exact cause.
+
+### Windows
+
+Works on **Docker Desktop in Linux-container mode** (the default) — all pentest tools run inside
+the Linux Kali container, so the Windows host only shells out to `docker`. Notes:
+
+- The CLI reconfigures stdout to UTF-8 and degrades gracefully if a captured console can't encode
+  the live-log glyphs, so a piped/redirected scan won't die on `UnicodeEncodeError`.
+- Put the key in a `.env` file in the repo (`ANTHROPIC_API_KEY=sk-ant-...`) — it's loaded
+  automatically and is git-ignored — or `set ANTHROPIC_API_KEY=...` in the shell.
+- The **bundled demo** (`scan` with no target) reaches the host via `host.docker.internal`, which
+  Windows Firewall may block on first run; a real URL/repo scan uses ordinary container networking
+  and is unaffected. Docker Desktop must be in Linux-container mode (a Kali image can't build under
+  Windows containers).
 
 ## Reading the artifacts
 

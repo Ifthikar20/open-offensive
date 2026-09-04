@@ -28,14 +28,20 @@ _TOOLS = ["run_command", "read_file", "load_skill", "list_skills", "report_findi
 _COMMON_SYSTEM = (
     "You are OpenOffensive, an authorized penetration-testing agent working INSIDE an "
     "isolated Kali Linux sandbox container. A full toolset (nmap, curl, sqlmap, nikto, "
-    "gobuster, whatweb, python3, git) is available through the run_command tool, which "
-    "runs a shell command in the container and returns its output. "
+    "whatweb, gobuster, dirb, wafw00f, python3, git) is available through the run_command "
+    "tool, which runs ONE shell command in the container and returns its real output. "
+    "You are testing a REAL, UNKNOWN application: do not assume any endpoint exists — "
+    "discover the attack surface from evidence. "
+    "Work as a loop: run a command, READ its output, decide the next command from what you "
+    "actually saw, and repeat — one tool call per step. Start broad to map the app "
+    "(fingerprint the server/tech, fetch the homepage and read it, check robots.txt and "
+    "sitemap.xml, follow links, enumerate paths with gobuster/dirb) to find its real pages "
+    "— especially any auth or business-logic page — THEN probe those for issues. "
     "You are authorized to test ONLY {scope}. Never attempt to reach any other host. "
-    "Confirm every issue from real tool output before reporting it. Before testing a "
-    "vulnerability class you're unsure about, call load_skill. File each validated issue "
-    "with report_finding — evidence quoted from real output, a concrete proof-of-concept, "
-    "a fix, and an honest severity; never invent findings. Work step by step, one tool "
-    "call per step, and call finish with a short summary when your focus area is covered."
+    "Confirm every issue from real output before reporting it; call load_skill before a "
+    "class you're unsure about. File each validated issue with report_finding — evidence "
+    "quoted from real output, a concrete proof-of-concept, a fix, and an honest severity; "
+    "never invent findings. Call finish with a short summary when your focus area is covered."
 )
 
 
@@ -76,11 +82,15 @@ class BaseAgent:
         return _COMMON_SYSTEM.format(scope=self._scope())
 
     def task_prompt(self) -> str:
-        src = self.workspace_path or "none (black-box — test over the network)"
+        src = self.workspace_path or "none (black-box — probe over the network)"
         return (f"Target: {self.target}\nSource in the container: {src}\n"
                 f"Your focus: {self.focus}\n"
-                "Orient yourself first (curl the target, or list/grep the source), then test "
-                "thoroughly and report what you validate.")
+                "First ENUMERATE to learn what this app actually is and where its "
+                "interesting pages live — fingerprint it, fetch and read the homepage, check "
+                "robots.txt / sitemap and any linked paths, and discover routes (gobuster / "
+                "dirb) as needed. Only once you've found real endpoints, test them for your "
+                "focus area. Base each next command on the output you just saw, and report "
+                "only what you validate from real responses.")
 
     # -- lifecycle ------------------------------------------------------------
     def run(self) -> None:

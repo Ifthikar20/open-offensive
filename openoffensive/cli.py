@@ -32,6 +32,25 @@ def _is_local(target: str) -> bool:
     return host in _LOCAL_HOSTS or host.endswith(".localhost")
 
 
+def _safe_line(text: str, encoding: str) -> str:
+    """A version of ``text`` that ``encoding`` can represent — used as a fallback so
+    the live log's glyphs/em-dashes never crash a Windows console (cp1252) when
+    stdout is piped/captured and can't be reconfigured to UTF-8."""
+    enc = encoding or "utf-8"
+    try:
+        text.encode(enc)
+        return text
+    except (UnicodeEncodeError, LookupError):
+        return text.encode(enc, "replace").decode(enc, "replace")
+
+
+def _safe_print(text: str) -> None:
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(_safe_line(text, getattr(sys.stdout, "encoding", None) or "utf-8"))
+
+
 def _settings_for(args: argparse.Namespace) -> Settings:
     s = load_settings()
     repl: dict = {}
@@ -62,7 +81,7 @@ def _stream_and_run(coord: Coordinator, run_fn) -> None:
         except queue.Empty:
             continue
         g = _GLYPH.get(ev.level, "·")
-        print(f"  {g} {ev.agent:<18} {ev.message}")
+        _safe_print(f"  {g} {ev.agent:<18} {ev.message}")
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
@@ -116,20 +135,9 @@ def cmd_scan(args: argparse.Namespace) -> int:
 def _check_model_api(settings) -> tuple[bool, str]:
     """Make a tiny real API call so a broken model connection shows up here as one
     clear line, instead of later as three opaque 'crashed: Connection error' rows.
-    Surfaces the underlying cause (SSL, auth, model-not-found) the SDK hides."""
-    try:
-        import anthropic
-    except Exception:  # noqa: BLE001
-        return False, "anthropic SDK not installed (pip install 'openoffensive[llm]')"
-    try:
-        anthropic.Anthropic().messages.create(
-            model=settings.model, max_tokens=4,
-            messages=[{"role": "user", "content": "ping"}])
-        return True, f"OK — {settings.model} reachable"
-    except Exception as e:  # noqa: BLE001
-        cause = getattr(e, "__cause__", None)
-        detail = f" — {type(cause).__name__}: {cause}" if cause else ""
-        return False, f"{type(e).__name__}: {e}{detail}"
+    Shares the exact preflight the scan runs, so doctor and scan agree."""
+    from .llm import preflight_model
+    return preflight_model(settings)
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -229,6 +237,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Make the live log's Unicode glyphs safe on a Windows console: prefer real
+    # UTF-8, and _safe_print() covers the rest if a captured stream can't be set.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001 — older/odd streams simply keep their encoding
+            pass
     args = build_parser().parse_args(argv)
     return int(args.func(args) or 0)
 

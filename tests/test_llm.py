@@ -105,6 +105,46 @@ def test_llm_available_true_with_key_and_fake_sdk(monkeypatch):
     assert reason == ""
 
 
+# ---------------------------------------------------------------------------
+# preflight_model — the shared "is the model actually reachable" probe
+# ---------------------------------------------------------------------------
+def test_preflight_model_reports_no_key():
+    ok, msg = llm_mod.preflight_model(Settings(api_key_present=False))
+    assert ok is False
+    assert "ANTHROPIC_API_KEY" in msg
+
+
+def test_preflight_model_ok_with_reachable_model(monkeypatch):
+    install_fake_anthropic(monkeypatch, [FakeResponse([], stop_reason="end_turn")])
+    ok, msg = llm_mod.preflight_model(Settings(api_key_present=True, model="claude-probe"))
+    assert ok is True
+    assert "claude-probe" in msg
+
+
+def test_preflight_model_surfaces_connection_cause(monkeypatch):
+    err = RuntimeError("Connection error.")
+    err.__cause__ = OSError("SSL: CERTIFICATE_VERIFY_FAILED")
+
+    class _Msgs:
+        def create(self, **kw):
+            raise err
+
+    class _Client:
+        messages = _Msgs()
+
+        def __init__(self, *a, **k):
+            pass
+
+    module = types.ModuleType("anthropic")
+    module.Anthropic = _Client
+    monkeypatch.setitem(sys.modules, "anthropic", module)
+
+    ok, msg = llm_mod.preflight_model(Settings(api_key_present=True, model="claude-probe"))
+    assert ok is False
+    assert "Connection error" in msg
+    assert "CERTIFICATE_VERIFY_FAILED" in msg   # the SDK's hidden cause surfaces
+
+
 def test_run_agent_llm_raises_when_unavailable(tmp_path, monkeypatch):
     monkeypatch.delitem(sys.modules, "anthropic", raising=False)
     coord = Coordinator("http://x", mode="llm")

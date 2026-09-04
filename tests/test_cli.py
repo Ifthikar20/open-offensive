@@ -142,7 +142,7 @@ def _fake_anthropic(monkeypatch, *, raises=None):
 def test_check_model_api_ok(monkeypatch):
     from openoffensive import Settings
     _fake_anthropic(monkeypatch)
-    ok, msg = cli._check_model_api(Settings(model="claude-probe"))
+    ok, msg = cli._check_model_api(Settings(model="claude-probe", api_key_present=True))
     assert ok is True
     assert "claude-probe" in msg
 
@@ -153,10 +153,25 @@ def test_check_model_api_surfaces_underlying_cause(monkeypatch):
     err = RuntimeError("Connection error.")
     err.__cause__ = ValueError("certificate verify failed")
     _fake_anthropic(monkeypatch, raises=err)
-    ok, msg = cli._check_model_api(Settings(model="claude-probe"))
+    ok, msg = cli._check_model_api(Settings(model="claude-probe", api_key_present=True))
     assert ok is False
     assert "Connection error" in msg
     assert "certificate verify failed" in msg   # the hidden cause is now visible
+
+
+# ---------------------------------------------------------------------------
+# Windows-safe console printing
+# ---------------------------------------------------------------------------
+def test_safe_line_passes_utf8_through():
+    assert cli._safe_line("→ nmap — done ⚑", "utf-8") == "→ nmap — done ⚑"
+
+
+def test_safe_line_survives_cp1252_and_ascii():
+    # A cp1252 / ascii console can't encode the glyphs; must degrade, not raise.
+    for enc in ("cp1252", "ascii"):
+        out = cli._safe_line("→ nmap ⚑ — done", enc)
+        assert "nmap" in out            # the real content survives
+        out.encode(enc)                 # and the result is encodable (no crash)
 
 
 def test_doctor_reports_model_api_when_key_present(monkeypatch, capsys):

@@ -12,12 +12,34 @@ from . import reporting
 from .agents import RootAgent
 from .config import Settings, load_settings
 from .coordinator import Coordinator
-from .llm import llm_available
+from .llm import llm_available, preflight_model
 from .models import ScanResult
 from .persistence import RunStore
 from .sandbox import SANDBOX_DIR, SandboxError, docker_available, open_sandbox
 
 _REPO_HOSTS = ("github.com", "gitlab.com", "bitbucket.org")
+
+
+class PreflightError(RuntimeError):
+    """The model is unreachable, so LLM-mode agents can't run — fail before the
+    container is built rather than after three opaque per-agent crashes."""
+
+
+def _first_crash_reason(coord: Coordinator) -> str:
+    """The reason from the first agent-crash event, e.g. 'Connection error.'."""
+    for ev in coord.events:
+        if ev.level == "error" and ev.message.startswith("crashed:"):
+            return ev.message[len("crashed:"):].strip()
+    return ""
+
+
+def _failed_from_crashes(coord: Coordinator) -> tuple[bool, str]:
+    """True (+reason) when every specialist that ran crashed and nothing was found —
+    a failed run that would otherwise masquerade as a clean 0-finding scan."""
+    crashed = coord.crashed_agents()
+    if crashed and not coord.findings:
+        return True, _first_crash_reason(coord) or "all agents stopped after errors"
+    return False, ""
 
 
 def resolve_mode(settings: Settings) -> tuple[str, str]:
@@ -83,6 +105,15 @@ def run_scan(coord: Coordinator, *, settings: Optional[Settings] = None,
         coord.emit(level, None, msg)
 
     try:
+        # In LLM mode the agents call the model from the host on their first step;
+        # verify it's reachable now, before spending time building the container.
+        if mode == "llm":
+            ok, msg = preflight_model(settings)
+            if not ok:
+                raise PreflightError(
+                    "the model is unreachable, so the agents can't reason — "
+                    f"{msg}. Run `openoffensive doctor` to fix it, or run scripted "
+                    "mode (unset ANTHROPIC_API_KEY or pass --mode scripted).")
         if created_sandbox:
             ok, reason = docker_available()
             if not ok:
@@ -105,6 +136,13 @@ def run_scan(coord: Coordinator, *, settings: Optional[Settings] = None,
             coord.emit("system", None, f"copied target source → {workspace_path}")
 
         RootAgent(coord, settings, sandbox, coord.target, workspace_path).run()
+
+        # A run where every specialist crashed and nothing was found is a failure,
+        # not a clean scan — surface it so status/exit code reflect reality.
+        failed, reason = _failed_from_crashes(coord)
+        if failed:
+            status = "error"
+            coord.emit("error", None, f"no findings — every specialist crashed: {reason}")
     except Exception as e:  # noqa: BLE001
         status = "error"
         coord.emit("error", None, f"scan error: {e}")

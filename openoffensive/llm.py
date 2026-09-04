@@ -46,6 +46,38 @@ def llm_available(settings: Any) -> tuple[bool, str]:
     return True, ""
 
 
+def _make_client(settings: Any):
+    """Construct the Anthropic client with an explicit request timeout, so a stalled
+    connection fails in ~a minute instead of hanging on the SDK's 10-minute default.
+    Retries stay at the SDK default (2), which already covers transient errors."""
+    import anthropic
+
+    return anthropic.Anthropic(timeout=60.0)
+
+
+def preflight_model(settings: Any) -> tuple[bool, str]:
+    """Make one tiny real call to confirm the model is actually reachable BEFORE a
+    scan spends time building the container and spawning agents.
+
+    Returns (ok, message). On failure the message surfaces the underlying cause the
+    SDK hides behind a bare "Connection error." — an SSL/cert problem, an auth
+    rejection, or an unavailable model — so the operator sees what to fix. Used by
+    both ``openoffensive doctor`` and ``run_scan``.
+    """
+    usable, reason = llm_available(settings)
+    if not usable:
+        return False, reason
+    try:
+        _make_client(settings).messages.create(
+            model=settings.model, max_tokens=4,
+            messages=[{"role": "user", "content": "ping"}])
+        return True, f"OK — {settings.model} reachable"
+    except Exception as e:  # noqa: BLE001
+        cause = getattr(e, "__cause__", None)
+        detail = f" — {type(cause).__name__}: {cause}" if cause else ""
+        return False, f"{type(e).__name__}: {e}{detail}"
+
+
 def _cost(model: str, usage: Any) -> float:
     pin, pout = _PRICES.get(model, _PRICES["claude-opus-5"])
     it = getattr(usage, "input_tokens", 0) or 0
@@ -62,9 +94,7 @@ def run_agent_llm(ctx: ToolContext, *, system_prompt: str, task: str,
     if not usable:
         raise LLMUnavailable(reason)
 
-    import anthropic
-
-    client = anthropic.Anthropic()
+    client = _make_client(settings)
     model = settings.model
     tools = anthropic_schemas(tool_names)
     messages: list[dict[str, Any]] = [{"role": "user", "content": task}]

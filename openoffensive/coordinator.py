@@ -21,7 +21,8 @@ from .models import AgentState, Finding, LogEvent, now
 
 class Coordinator:
     def __init__(self, target: str, mode: str = "scripted") -> None:
-        self.target = target
+        # Drop a trailing slash so probes build "http://host/path", not "…//path".
+        self.target = target.rstrip("/") if target else target
         self.mode = mode              # "scripted" | "llm" — how agents decide next actions
         self._lock = threading.Lock()
         self._seq = 0
@@ -113,6 +114,13 @@ class Coordinator:
                   finding=finding.to_dict())
         return finding
 
+    def crashed_agents(self) -> list[AgentState]:
+        """Agents that stopped after an error. ``"stopped"`` is set in exactly one
+        place (an agent crash), so it uniquely marks a specialist that died — the
+        signal a caller uses to tell a failed run from a clean 0-finding one."""
+        with self._lock:
+            return [a for a in self.agents.values() if a.status == "stopped"]
+
     # ---- snapshot for a fresh page load ------------------------------------
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
@@ -123,6 +131,7 @@ class Coordinator:
                 "cost": round(self.cost, 3),
                 "agents": [a.to_dict() for a in self.agents.values()],
                 "findings": [f.to_dict() for f in self.findings],
+                "crashed": sum(1 for a in self.agents.values() if a.status == "stopped"),
                 "last_seq": self._seq,
             }
 
