@@ -1,15 +1,22 @@
 """Shared pytest fixtures and helpers for the OpenOffensive test suite.
 
-Everything here is designed to keep the suite deterministic, fast, and
-side-effect-free:
+The suite is built for the NEW architecture: a scan runs inside a per-scan
+sandbox container and is driven either by a real LLM tool-use loop or a scripted
+in-container playbook. To keep the suite deterministic, fast, and free of Docker
+and network, tests inject a :class:`FakeSandbox` (see :func:`demo_sandbox`) into
+``run_scan``/``ToolContext`` instead of a real Docker container, and inject a
+fake ``anthropic`` SDK for the LLM loop.
 
-* the bundled vulnerable demo target is served once per session on a random
-  loopback port and yielded as a base URL;
-* ``build_settings`` / ``fast_settings`` produce a frozen ``Settings`` with
-  ``speed=0`` (instant scans) pointed at a throwaway ``runs_dir`` under
-  ``tmp_path`` so no test ever writes to ``./runs``;
+Everything here keeps the suite hermetic:
+
 * an autouse fixture wipes OpenOffensive/Anthropic environment variables and
-  drops the ``lru_cache``\\d settings before and after every test.
+  drops the ``lru_cache``\\d settings before and after every test;
+* ``build_settings`` / ``fast_settings`` produce a frozen scripted ``Settings``
+  pointed at a throwaway ``runs_dir`` under ``tmp_path``;
+* ``demo_sandbox()`` builds an in-memory sandbox that simulates the bundled
+  vulnerable demo app, so a scripted scan finds all six issues with no Docker;
+* the real bundled demo target is still served (loopback, random port) for the
+  handful of tests that assert it is genuinely vulnerable over real HTTP.
 """
 
 from __future__ import annotations
@@ -27,6 +34,45 @@ from openoffensive.config import reset_settings_cache
 from openoffensive.demo_target import serve_in_thread
 from openoffensive.models import AgentState
 from openoffensive.persistence import RunStore
+from openoffensive.sandbox.fake import FakeSandbox
+from openoffensive.tools import ToolContext
+
+# A loopback URL used as the scan target when the FakeSandbox does the answering.
+# It must classify as a live "url" (not a local dir / git repo) so the runner
+# does NOT try to clone/copy source into a workspace — a workspace would make
+# recon file an extra "Secrets in source" finding and throw the count off.
+SCANNED_TARGET = "http://127.0.0.1:8123"
+
+
+# ---------------------------------------------------------------------------
+# the FakeSandbox that simulates the bundled demo app
+# ---------------------------------------------------------------------------
+# Canned tool output keyed by the endpoint substring the command touches. A
+# scripted scan against this sandbox reproduces all six intentional demo vulns:
+# a leaked live key (critical), a SQL error + an IDOR (high x2), reflected XSS
+# (medium), missing security headers (low), and a server banner (info).
+DEMO_HOME = ("HTTP/1.1 200 OK\r\nServer: JuiceBox/0.1\r\n"
+             "Content-Type: text/html\r\n\r\n<html>demo</html>")
+DEMO_APPJS = '// bundle\nconst CONFIG={stripeKey:"sk_live_51JbXdemoLEAKED"};'
+DEMO_LOGIN = ('HTTP/1.1 500 ERR\r\n\r\n'
+              'SQLite3::SQLException: unrecognized token near "\'"')
+DEMO_SEARCH = "<html><h2>Results for: <script>xss1()</script></h2></html>"
+DEMO_IDOR = ('{"id":1,"api_token":"jbx_live_a"}\n'
+             '{"id":2,"api_token":"jbx_live_b"}\n'
+             '{"id":3,"api_token":"jbx_live_c"}')
+
+
+def demo_sandbox() -> FakeSandbox:
+    """An in-memory sandbox whose answers make a scripted scan find all 6 vulns."""
+    return FakeSandbox(
+        responses={
+            "/static/app.js": (DEMO_APPJS, 0),
+            "/login": (DEMO_LOGIN, 0),
+            "/search": (DEMO_SEARCH, 0),
+            "/api/user": (DEMO_IDOR, 0),
+        },
+        default=(DEMO_HOME, 0),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +117,7 @@ def fast_settings(tmp_path) -> Settings:
 
 
 # ---------------------------------------------------------------------------
-# the vulnerable demo target
+# the vulnerable demo target (real HTTP — for the "is it actually vulnerable" tests)
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="session")
 def demo_target():
@@ -89,23 +135,28 @@ def demo_target():
 
 
 # ---------------------------------------------------------------------------
-# a completed scan (reused by engine/reporting/persistence tests)
+# a completed scripted scan, driven by an injected FakeSandbox (no Docker)
 # ---------------------------------------------------------------------------
 @pytest.fixture
-def scanned(demo_target, tmp_path):
-    """Run one full scripted scan against the demo target and hand back the pieces."""
+def scanned(tmp_path):
+    """Run one full scripted scan through an injected demo sandbox and hand back
+    the pieces (coord, result, store, sandbox, ...) reused by the engine,
+    reporting, and persistence tests."""
     settings = build_settings(tmp_path)
     store = RunStore(str(Path(tmp_path) / "runs"))
     scan_id = "scan-testrun"
-    coord = Coordinator(demo_target)
-    result = run_scan(coord, settings=settings, scan_id=scan_id, store=store)
+    sandbox = demo_sandbox()
+    coord = Coordinator(SCANNED_TARGET)
+    result = run_scan(coord, settings=settings, scan_id=scan_id, store=store,
+                      sandbox=sandbox)
     return types.SimpleNamespace(
         coord=coord,
         result=result,
         store=store,
         scan_id=scan_id,
         settings=settings,
-        target=demo_target,
+        sandbox=sandbox,
+        target=SCANNED_TARGET,
     )
 
 
@@ -115,6 +166,17 @@ def scanned(demo_target, tmp_path):
 def make_agent(name: str = "Tester", role: str = "tester") -> AgentState:
     """A bare agent-graph node, enough to drive a ToolContext."""
     return AgentState(id="agent-1", name=name, role=role, parent=None, task="testing")
+
+
+def tool_ctx(coord, *, settings=None, sandbox=None, target=None, agent=None) -> ToolContext:
+    """Build a ToolContext backed by a FakeSandbox (the new 5-arg signature)."""
+    return ToolContext(
+        coord,
+        agent or make_agent(),
+        settings or Settings(speed=0.0, api_key_present=False),
+        sandbox if sandbox is not None else FakeSandbox(),
+        target or coord.target,
+    )
 
 
 def http_get(url: str):

@@ -1,14 +1,20 @@
 """The command-line interface: exit codes, artifact writing, and the safety guard.
 
-Every scan here is either the bundled demo or a guard that returns before any
-network call, so nothing reaches an external host.
+A real scan needs Docker, which is unavailable here, so the scan tests inject a
+:class:`FakeSandbox` by monkeypatching the runner's ``docker_available`` /
+``open_sandbox`` seam (the ``no_docker`` fixture). ``doctor`` deliberately uses
+the real preflight and reports Docker missing. The authorization guard is checked
+to fire BEFORE any Docker/sandbox use.
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
+
+from conftest import demo_sandbox
 
 from openoffensive import cli
 
@@ -21,6 +27,19 @@ def _scan_dirs(runs_dir) -> list[str]:
         return []
     return sorted(p.name for p in root.iterdir()
                   if p.is_dir() and p.name.startswith("scan-"))
+
+
+@pytest.fixture
+def no_docker(monkeypatch):
+    """Make the runner build an injected FakeSandbox instead of a Docker container.
+
+    ``docker_available`` is forced true and ``open_sandbox`` returns a sandbox
+    that simulates the bundled demo app, so ``scan`` completes with findings and
+    never touches a daemon.
+    """
+    import openoffensive.runner as runner
+    monkeypatch.setattr(runner, "docker_available", lambda: (True, ""))
+    monkeypatch.setattr(runner, "open_sandbox", lambda *a, **k: demo_sandbox())
 
 
 # ---------------------------------------------------------------------------
@@ -42,9 +61,9 @@ def test_no_subcommand_is_an_error():
 
 
 # ---------------------------------------------------------------------------
-# scan
+# scan (through the injected sandbox — no Docker)
 # ---------------------------------------------------------------------------
-def test_scan_bundled_demo_returns_findings_and_writes_artifacts(tmp_path, capsys):
+def test_scan_bundled_demo_returns_findings_and_writes_artifacts(no_docker, tmp_path, capsys):
     runs = tmp_path / "runs"
     rc = cli.main(["scan", "--runs-dir", str(runs)])
     assert rc == 2  # bundled demo is vulnerable → findings present
@@ -60,16 +79,16 @@ def test_scan_bundled_demo_returns_findings_and_writes_artifacts(tmp_path, capsy
     assert "Report:" in out
 
 
-def test_scan_explicit_loopback_target(demo_target, tmp_path):
+def test_scan_explicit_loopback_target(no_docker, tmp_path):
     runs = tmp_path / "runs"
-    rc = cli.main(["scan", demo_target, "--runs-dir", str(runs)])
+    rc = cli.main(["scan", "http://127.0.0.1:8123", "--runs-dir", str(runs)])
     assert rc == 2
     assert len(_scan_dirs(runs)) == 1
 
 
 def test_scan_non_loopback_without_authorization_refuses(tmp_path, capsys):
     runs = tmp_path / "runs"
-    # Must return 1 BEFORE any scan/network activity.
+    # Must return 1 BEFORE any scan/sandbox activity (no no_docker fixture here).
     rc = cli.main(["scan", "http://example.com", "--runs-dir", str(runs)])
     assert rc == 1
     err = capsys.readouterr().err
@@ -78,14 +97,24 @@ def test_scan_non_loopback_without_authorization_refuses(tmp_path, capsys):
     assert _scan_dirs(runs) == []
 
 
-def test_scan_scripted_mode_override(tmp_path):
+def test_scan_scripted_mode_override(no_docker, tmp_path):
     runs = tmp_path / "runs"
     rc = cli.main(["scan", "--mode", "scripted", "--runs-dir", str(runs)])
     assert rc == 2
     run_dir = runs / _scan_dirs(runs)[0]
-    import json
     rec = json.loads((run_dir / "run.json").read_text())
     assert rec["mode"] == "scripted"
+
+
+# ---------------------------------------------------------------------------
+# doctor — real preflight; Docker unavailable here
+# ---------------------------------------------------------------------------
+def test_doctor_returns_one_without_docker(capsys):
+    rc = cli.main(["doctor"])
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "docker daemon" in out
+    assert "UNAVAILABLE" in out
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +126,7 @@ def test_list_empty_returns_zero(tmp_path, capsys):
     assert "No runs yet" in capsys.readouterr().out
 
 
-def test_list_after_scan_shows_the_run(tmp_path, capsys):
+def test_list_after_scan_shows_the_run(no_docker, tmp_path, capsys):
     runs = tmp_path / "runs"
     cli.main(["scan", "--runs-dir", str(runs)])
     capsys.readouterr()  # drop scan output
@@ -114,7 +143,7 @@ def test_list_after_scan_shows_the_run(tmp_path, capsys):
 # ---------------------------------------------------------------------------
 # report
 # ---------------------------------------------------------------------------
-def test_report_prints_markdown_after_scan(tmp_path, capsys):
+def test_report_prints_markdown_after_scan(no_docker, tmp_path, capsys):
     runs = tmp_path / "runs"
     cli.main(["scan", "--runs-dir", str(runs)])
     capsys.readouterr()

@@ -27,6 +27,9 @@ def test_defaults_when_env_is_clean():
     assert s.speed == 1.0
     assert s.scope_allow == ()
     assert s.api_key_present is False
+    # sandbox (Docker) defaults
+    assert s.sandbox_image == "openoffensive-sandbox:kali"
+    assert s.sandbox_network == ""
 
 
 def test_env_maps_to_settings(monkeypatch):
@@ -54,6 +57,16 @@ def test_env_maps_to_settings(monkeypatch):
 def test_scope_env_is_split_and_stripped(monkeypatch):
     s = _load(monkeypatch, OPENOFFENSIVE_SCOPE="a.example, b.example ,,c.example")
     assert s.scope_allow == ("a.example", "b.example", "c.example")
+
+
+def test_sandbox_env_maps_to_settings(monkeypatch):
+    s = _load(
+        monkeypatch,
+        OPENOFFENSIVE_SANDBOX_IMAGE="ghcr.io/acme/kali:latest",
+        OPENOFFENSIVE_SANDBOX_NETWORK="oo-net",
+    )
+    assert s.sandbox_image == "ghcr.io/acme/kali:latest"
+    assert s.sandbox_network == "oo-net"
 
 
 def test_api_key_presence_from_env(monkeypatch):

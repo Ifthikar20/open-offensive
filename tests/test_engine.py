@@ -1,8 +1,14 @@
-"""End-to-end scripted scan against the demo target — the whole engine wired up."""
+"""End-to-end scripted scan through an INJECTED sandbox — the whole engine wired
+up with no Docker and no LLM.
+
+The runner is handed a :class:`FakeSandbox` (``demo_sandbox()``) that simulates
+the bundled vulnerable app, so the root agent + its three specialists run their
+scripted playbooks against it and file all six findings.
+"""
 
 from __future__ import annotations
 
-from conftest import build_settings
+from conftest import SCANNED_TARGET, build_settings, demo_sandbox
 
 from openoffensive import Coordinator, run_scan
 from openoffensive.persistence import RunStore
@@ -12,7 +18,6 @@ def test_full_scripted_scan_findings_and_severities(scanned):
     result = scanned.result
     assert result.status == "done"
     assert result.mode == "scripted"
-    assert result.turns > 0
 
     # exactly six findings, spanning all five severities
     assert len(result.findings) == 6
@@ -66,13 +71,31 @@ def test_findings_carry_cvss_scores(scanned):
         }[f["severity"]]
 
 
-def test_scan_is_deterministic_across_runs(demo_target, tmp_path):
+def test_injected_sandbox_is_started_used_but_not_closed(scanned):
+    # The runner starts an injected sandbox and runs real commands in it, but —
+    # unlike one it created itself — never closes it (the caller owns it).
+    sb = scanned.sandbox
+    assert sb.started is True
+    assert sb.closed is False
+    # the specialists' curl/for probes were recorded by the sandbox
+    assert any("curl" in c for c in sb.calls)
+    assert any(c.startswith("for i in") for c in sb.calls)
+
+
+def test_scripted_scan_bills_no_model_turns(scanned):
+    # Scripted mode never calls a model, so the spend meter stays at zero.
+    assert scanned.result.turns == 0
+    assert scanned.result.cost == 0.0
+
+
+def test_scan_is_deterministic_across_runs(tmp_path):
     # Two independent runs of the scripted methodology agree on the outcome.
     def run_once(sub):
         settings = build_settings(tmp_path / sub)
-        coord = Coordinator(demo_target)
+        coord = Coordinator(SCANNED_TARGET)
         store = RunStore(str(tmp_path / sub / "runs"))
-        return run_scan(coord, settings=settings, scan_id="scan-x", store=store)
+        return run_scan(coord, settings=settings, scan_id="scan-x", store=store,
+                        sandbox=demo_sandbox())
 
     a = run_once("a")
     b = run_once("b")

@@ -4,8 +4,8 @@ Two halves:
   * ``llm_available`` reports honestly when the SDK/key are missing (the
     ``anthropic`` package is genuinely NOT installed in this environment);
   * ``run_agent_llm`` drives a full tool-use loop against a MOCKED anthropic
-    SDK injected into ``sys.modules`` — executing real tools and terminating
-    when the model calls ``finish``.
+    SDK injected into ``sys.modules``, executing real tools INSIDE an injected
+    :class:`FakeSandbox` and terminating when the model calls ``finish``.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from conftest import build_settings, make_agent
 from openoffensive import Coordinator, Settings
 from openoffensive import llm as llm_mod
 from openoffensive.llm import LLMUnavailable
+from openoffensive.sandbox.fake import FakeSandbox
 from openoffensive.tools import ToolContext
 
 
@@ -74,7 +75,9 @@ def install_fake_anthropic(monkeypatch, responses):
 
 def _llm_ctx(coord, tmp_path, **over):
     settings = build_settings(tmp_path, api_key_present=True, **over)
-    return ToolContext(coord, make_agent(), settings), settings
+    sandbox = FakeSandbox(default=("TOOL OUTPUT", 0))
+    ctx = ToolContext(coord, make_agent(), settings, sandbox, coord.target)
+    return ctx, settings, sandbox
 
 
 # ---------------------------------------------------------------------------
@@ -102,10 +105,10 @@ def test_llm_available_true_with_key_and_fake_sdk(monkeypatch):
     assert reason == ""
 
 
-def test_run_agent_llm_raises_when_unavailable(demo_target, tmp_path, monkeypatch):
+def test_run_agent_llm_raises_when_unavailable(tmp_path, monkeypatch):
     monkeypatch.delitem(sys.modules, "anthropic", raising=False)
-    coord = Coordinator(demo_target, mode="llm")
-    ctx, settings = _llm_ctx(coord, tmp_path)
+    coord = Coordinator("http://x", mode="llm")
+    ctx, settings, _sb = _llm_ctx(coord, tmp_path)
     with pytest.raises(LLMUnavailable):
         llm_mod.run_agent_llm(ctx, system_prompt="s", task="t",
                               tool_names=["finish"], settings=settings)
@@ -114,11 +117,12 @@ def test_run_agent_llm_raises_when_unavailable(demo_target, tmp_path, monkeypatc
 # ---------------------------------------------------------------------------
 # run_agent_llm — the tool-use loop
 # ---------------------------------------------------------------------------
-def test_loop_executes_tools_files_finding_and_finishes(demo_target, tmp_path, monkeypatch):
+def test_loop_executes_tools_files_finding_and_finishes(tmp_path, monkeypatch):
     responses = [
         FakeResponse([
             FakeBlock("text", text="Let me probe the homepage first."),
-            FakeBlock("tool_use", name="http_request", input={"path": "/"}, id="t1"),
+            FakeBlock("tool_use", name="run_command",
+                      input={"command": "curl -s -i http://x/"}, id="t1"),
         ]),
         FakeResponse([
             FakeBlock("tool_use", name="report_finding", id="t2", input={
@@ -136,13 +140,13 @@ def test_loop_executes_tools_files_finding_and_finishes(demo_target, tmp_path, m
     ]
     module = install_fake_anthropic(monkeypatch, responses)
 
-    coord = Coordinator(demo_target, mode="llm")
-    ctx, settings = _llm_ctx(coord, tmp_path, model="claude-opus-5")
+    coord = Coordinator("http://x", mode="llm")
+    ctx, settings, sandbox = _llm_ctx(coord, tmp_path, model="claude-opus-5")
     llm_mod.run_agent_llm(
         ctx,
         system_prompt="you are a pentester",
         task="Target: begin.",
-        tool_names=["http_request", "report_finding", "finish"],
+        tool_names=["run_command", "report_finding", "finish"],
         settings=settings,
     )
 
@@ -160,25 +164,24 @@ def test_loop_executes_tools_files_finding_and_finishes(demo_target, tmp_path, m
     # the assistant's text was surfaced as a 'think' event
     assert any(ev.level == "think" and "probe the homepage" in ev.message
                for ev in coord.events)
-    # the http_request actually reached the live target (200 tool event)
-    assert any(ev.level == "tool" and ev.data.get("status") == 200
-               for ev in coord.events)
+    # the run_command actually executed in the sandbox container
+    assert sandbox.calls == ["curl -s -i http://x/"]
     # the model was handed the real tool schemas
     assert {t["name"] for t in module.calls[0]["tools"]} == \
-        {"http_request", "report_finding", "finish"}
+        {"run_command", "report_finding", "finish"}
 
 
-def test_loop_nudges_then_finishes_on_end_turn(demo_target, tmp_path, monkeypatch):
+def test_loop_nudges_then_finishes_on_end_turn(tmp_path, monkeypatch):
     responses = [
         FakeResponse([FakeBlock("text", text="thinking out loud")], stop_reason="end_turn"),
         FakeResponse([FakeBlock("tool_use", name="finish", input={}, id="f1")]),
     ]
     module = install_fake_anthropic(monkeypatch, responses)
 
-    coord = Coordinator(demo_target, mode="llm")
-    ctx, settings = _llm_ctx(coord, tmp_path)
+    coord = Coordinator("http://x", mode="llm")
+    ctx, settings, _sb = _llm_ctx(coord, tmp_path)
     llm_mod.run_agent_llm(ctx, system_prompt="s", task="t",
-                          tool_names=["http_request", "finish"], settings=settings)
+                          tool_names=["run_command", "finish"], settings=settings)
 
     assert ctx.finished is True
     assert len(module.calls) == 2
@@ -186,12 +189,12 @@ def test_loop_nudges_then_finishes_on_end_turn(demo_target, tmp_path, monkeypatc
     assert module.calls[1]["messages"][-1]["role"] == "user"
 
 
-def test_loop_stops_on_refusal(demo_target, tmp_path, monkeypatch):
+def test_loop_stops_on_refusal(tmp_path, monkeypatch):
     responses = [FakeResponse([FakeBlock("text", text="no")], stop_reason="refusal")]
     module = install_fake_anthropic(monkeypatch, responses)
 
-    coord = Coordinator(demo_target, mode="llm")
-    ctx, settings = _llm_ctx(coord, tmp_path)
+    coord = Coordinator("http://x", mode="llm")
+    ctx, settings, _sb = _llm_ctx(coord, tmp_path)
     llm_mod.run_agent_llm(ctx, system_prompt="s", task="t",
                           tool_names=["finish"], settings=settings)
 
@@ -201,18 +204,18 @@ def test_loop_stops_on_refusal(demo_target, tmp_path, monkeypatch):
     assert any(ev.level == "error" and "refusal" in ev.message for ev in coord.events)
 
 
-def test_loop_stops_at_step_budget(demo_target, tmp_path, monkeypatch):
+def test_loop_stops_at_step_budget(tmp_path, monkeypatch):
     responses = [
-        FakeResponse([FakeBlock("tool_use", name="http_request",
-                                input={"path": "/"}, id=f"s{i}")])
+        FakeResponse([FakeBlock("tool_use", name="run_command",
+                                input={"command": "curl -s http://x/"}, id=f"s{i}")])
         for i in range(2)
     ]
     module = install_fake_anthropic(monkeypatch, responses)
 
-    coord = Coordinator(demo_target, mode="llm")
-    ctx, settings = _llm_ctx(coord, tmp_path, max_steps=2)
+    coord = Coordinator("http://x", mode="llm")
+    ctx, settings, _sb = _llm_ctx(coord, tmp_path, max_steps=2)
     llm_mod.run_agent_llm(ctx, system_prompt="s", task="t",
-                          tool_names=["http_request", "finish"], settings=settings)
+                          tool_names=["run_command", "finish"], settings=settings)
 
     assert ctx.finished is False
     assert len(module.calls) == 2  # exactly the step budget
