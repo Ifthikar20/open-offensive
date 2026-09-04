@@ -1,6 +1,10 @@
 __pycache__/
 *.pyc
 .DS_Store
+# local secrets — NEVER commit (holds ANTHROPIC_API_KEY)
+.env
+.env.*
+!.env.example
 # local scan artifacts
 runs/
 # packaging / test caches

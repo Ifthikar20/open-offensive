@@ -90,6 +90,8 @@ def _clean_env(monkeypatch):
         if key.startswith("OPENOFFENSIVE_"):
             monkeypatch.delenv(key, raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    # Never let a developer's local .env leak a real key into the hermetic suite.
+    monkeypatch.setenv("OPENOFFENSIVE_NO_DOTENV", "1")
     reset_settings_cache()
     yield
     reset_settings_cache()

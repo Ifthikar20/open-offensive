@@ -37,6 +37,39 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
+def _load_dotenv() -> None:
+    """Best-effort loader for a local ``.env`` in the current directory.
+
+    OpenOffensive has no third-party dependencies, so there is no python-dotenv;
+    this reads simple ``KEY=VALUE`` lines (an optional ``export`` prefix and
+    surrounding quotes are tolerated) and sets them in the process environment
+    WITHOUT overriding anything already set — a real shell variable always wins.
+    Set ``OPENOFFENSIVE_NO_DOTENV=1`` to disable it (the test suite does, to stay
+    hermetic). Never raises: a missing or malformed .env is simply ignored.
+    """
+    if os.environ.get("OPENOFFENSIVE_NO_DOTENV"):
+        return
+    try:
+        with open(os.path.join(os.getcwd(), ".env"), "r", encoding="utf-8") as fh:
+            lines = fh.readlines()
+    except OSError:
+        return
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        key, sep, val = line.partition("=")
+        if not sep:
+            continue
+        key, val = key.strip(), val.strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
+            val = val[1:-1]
+        if key and key not in os.environ:
+            os.environ[key] = val
+
+
 @dataclass(frozen=True)
 class Settings:
     # --- dashboard / server ---
@@ -81,6 +114,7 @@ class Settings:
 
 @lru_cache(maxsize=1)
 def load_settings() -> Settings:
+    _load_dotenv()   # pick up ANTHROPIC_API_KEY etc. from a local .env, if present
     return Settings(
         host=_env("OPENOFFENSIVE_HOST") or "127.0.0.1",
         port=_env_int("OPENOFFENSIVE_PORT", 8777),

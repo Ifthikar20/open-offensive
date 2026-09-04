@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 
 from openoffensive import Settings, load_settings
-from openoffensive.config import reset_settings_cache
+from openoffensive.config import _load_dotenv, reset_settings_cache
 
 
 def _load(monkeypatch, **env) -> Settings:
@@ -119,3 +120,43 @@ def test_llm_enabled_auto_via_env(monkeypatch):
     with_key = _load(monkeypatch, OPENOFFENSIVE_LLM_MODE="auto",
                      ANTHROPIC_API_KEY="sk-test")
     assert with_key.llm_enabled is True
+
+
+# ---------------------------------------------------------------------------
+# .env auto-loading (zero-dependency dotenv)
+# ---------------------------------------------------------------------------
+def test_dotenv_is_loaded_into_settings(tmp_path, monkeypatch):
+    # A local .env supplies the key; load_settings() picks it up → llm turns on.
+    monkeypatch.delenv("OPENOFFENSIVE_NO_DOTENV", raising=False)
+    (tmp_path / ".env").write_text(
+        '# local secrets\nexport ANTHROPIC_API_KEY="sk-ant-fromdotenv"\n'
+        "OPENOFFENSIVE_MODEL=claude-sonnet-5\n")
+    monkeypatch.chdir(tmp_path)
+    try:
+        reset_settings_cache()
+        s = load_settings()
+        assert s.api_key_present is True          # key came from the .env file
+        assert s.model == "claude-sonnet-5"
+        assert s.llm_enabled is True              # auto mode + key → llm
+    finally:
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+        os.environ.pop("OPENOFFENSIVE_MODEL", None)
+
+
+def test_dotenv_never_overrides_real_env(tmp_path, monkeypatch):
+    monkeypatch.delenv("OPENOFFENSIVE_NO_DOTENV", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "real-shell-key")
+    (tmp_path / ".env").write_text("ANTHROPIC_API_KEY=dotenv-key\n")
+    monkeypatch.chdir(tmp_path)
+    _load_dotenv()
+    assert os.environ["ANTHROPIC_API_KEY"] == "real-shell-key"   # the shell wins
+
+
+def test_no_dotenv_flag_disables_loading(tmp_path, monkeypatch):
+    # The flag the suite sets so a developer's real .env can't leak into tests.
+    monkeypatch.setenv("OPENOFFENSIVE_NO_DOTENV", "1")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    (tmp_path / ".env").write_text("ANTHROPIC_API_KEY=should-not-load\n")
+    monkeypatch.chdir(tmp_path)
+    _load_dotenv()
+    assert "ANTHROPIC_API_KEY" not in os.environ
