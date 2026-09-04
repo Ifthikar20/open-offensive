@@ -631,14 +631,19 @@ readable model of the architecture above:
 |---|---|
 | `core/agents.py` AgentCoordinator (mailboxes, snapshots) | `openoffensive/coordinator.py` (agent graph + event bus + findings) |
 | graph of agents + `core/execution.py` | `openoffensive/agents.py` (root + specialists, lifecycle) |
-| sandbox `exec_command` + `tools/*` | `openoffensive/tools.py` (real HTTP, host allowlist) |
+| Docker/Kali sandbox, `session.exec` = `docker exec` | `openoffensive/sandbox/` (`DockerSandbox` — one Kali container per scan, driven via the `docker` CLI) |
+| sandbox `exec_command` + `tools/*` | `openoffensive/tools.py` (`run_command` → `docker exec` in the container, `read_file`, `report_finding`, …) |
+| host `git clone` → bind-mount `/workspace/<name>` | `DockerSandbox.add_repo` (`git clone --depth 1` inside the container) / `add_dir` (`docker cp`) |
 | `strix/skills/*` + `load_skill` | `openoffensive/skills.py` (load-on-demand) |
 | `create_vulnerability_report` + CVSS + SARIF | `openoffensive/reporting.py` (Markdown + SARIF 2.1.0) |
 | `finish_scan` → `strix_runs/<id>/` | `openoffensive/persistence.py` (`runs/<id>/`) |
 | `strix view` | `openoffensive/server.py` (dashboard + SSE) |
 | OpenAI Agents SDK + LiteLLM tool loop | `openoffensive/llm.py` (manual Claude tool-use loop) |
 
-The biggest differences: Strix runs a full Docker/Kali sandbox with a Caido proxy and a
-model-driven loop by default; OpenOffensive uses a scripted methodology over real HTTP with
-an optional model loop, and confines itself to a bundled localhost demo target. See
-[../ARCHITECTURE.md](../ARCHITECTURE.md) for OpenOffensive's own design.
+Like Strix, OpenOffensive now runs each scan in a real Docker/Kali container, pulls the
+target's source into it, and drives tools through `docker exec`. The remaining differences are
+scale: OpenOffensive is a proof of concept — no Caido HTTP-intercepting proxy, a smaller
+toolset and skills library, three fixed specialists rather than a model-grown agent graph, and
+a fixed in-container playbook (**scripted** mode) when no `ANTHROPIC_API_KEY` is present, versus
+Strix's model-driven loop by default. By default it confines itself to a bundled localhost demo
+target. See [../ARCHITECTURE.md](../ARCHITECTURE.md) for OpenOffensive's own design.
