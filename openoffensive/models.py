@@ -57,7 +57,14 @@ class AgentState:
 
 @dataclass
 class Finding:
-    """A validated vulnerability report."""
+    """A validated vulnerability report.
+
+    ``command`` and ``output`` are the finding's *provenance*: the exact shell
+    command that ran inside the sandbox container and the raw output snippet that
+    triggered the finding. They are what makes a finding auditable — anyone can
+    re-run ``command`` in the same container and see the same ``output``, rather
+    than trusting the summary in ``evidence``.
+    """
     id: str
     title: str
     severity: str
@@ -68,6 +75,8 @@ class Finding:
     agent: str
     cwe: str = ""
     poc: str = ""
+    command: str = ""      # the exact command run in the container
+    output: str = ""       # the raw output snippet that proves the finding
 
     @property
     def cvss(self) -> float:

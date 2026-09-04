@@ -31,6 +31,10 @@ class ToolContext:
         self.target = target
         self.finished = False
         self.finish_summary = ""
+        # Provenance of the most recent command — auto-attached to a finding the
+        # agent files next (used for LLM findings, where the model doesn't pass it).
+        self.last_command = ""
+        self.last_output = ""
 
     # -- narration ------------------------------------------------------------
     def think(self, msg: str) -> None:
@@ -46,17 +50,27 @@ class ToolContext:
         res = self.sandbox.exec(command, timeout=min(int(timeout or 180), _MAX_EXEC_TIMEOUT))
         tag = "timeout" if res.timed_out else f"exit {res.exit_code}"
         self.coord.emit("tool", self.agent, f"  → {tag}, {len(res.stdout)}b", ok=res.ok)
+        # Remember it as provenance for whatever finding the agent files next.
+        self.last_command = command
+        self.last_output = res.combined(limit=1200)
         return res
 
     # -- findings -------------------------------------------------------------
     def report(self, *, title: str, severity: str, endpoint: str, evidence: str,
-               remediation: str, cwe: str = "", poc: str = "") -> Finding:
+               remediation: str, cwe: str = "", poc: str = "",
+               command: str = "", output: str = "") -> Finding:
         severity = (severity or "info").lower().strip()
         if severity not in ("critical", "high", "medium", "low", "info"):
             severity = "info"
+        # Provenance: prefer what the caller passed (scripted playbooks quote the
+        # exact matched line); otherwise stamp the agent's most recent command +
+        # output, so an LLM-filed finding is still traceable to real container I/O.
+        command = command or self.last_command
+        output = (output or self.last_output or "")[:1200]
         finding = Finding(id="", title=title, severity=severity, target=self.target,
                           endpoint=endpoint, evidence=evidence, remediation=remediation,
-                          agent=self.agent.name, cwe=cwe, poc=poc)
+                          agent=self.agent.name, cwe=cwe, poc=poc,
+                          command=command, output=output)
         return self.coord.add_finding(self.agent, finding)
 
 

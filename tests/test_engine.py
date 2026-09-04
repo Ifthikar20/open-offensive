@@ -71,6 +71,21 @@ def test_findings_carry_cvss_scores(scanned):
         }[f["severity"]]
 
 
+def test_findings_carry_reproducible_provenance(scanned):
+    # The trust guarantee: every finding records the exact command that produced
+    # it AND a raw output snippet — and that snippet genuinely appears when the
+    # command is re-run against the same sandbox. So a finding is auditable, not
+    # asserted: nothing is filed that the container's own output doesn't show.
+    replay = demo_sandbox()
+    for f in scanned.result.findings:
+        assert f["command"], f"{f['title']} has no command provenance"
+        assert f["output"], f"{f['title']} has no output provenance"
+        produced = replay.exec(f["command"]).combined()
+        first_line = f["output"].splitlines()[0]
+        assert first_line in produced, (
+            f"{f['title']}: recorded output is not reproducible from its command")
+
+
 def test_injected_sandbox_is_started_used_but_not_closed(scanned):
     # The runner starts an injected sandbox and runs real commands in it, but —
     # unlike one it created itself — never closes it (the caller owns it).

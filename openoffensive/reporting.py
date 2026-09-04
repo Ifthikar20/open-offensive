@@ -26,6 +26,11 @@ def build_markdown(coord: Coordinator) -> str:
         + "  ".join(f"{s}={counts[s]}" for s in _ORDER if counts[s]),
         f"**Model turns:** {coord.turns}   **spend:** ${coord.cost:.2f}",
         "",
+        "_Every finding carries the exact command run inside the sandbox container "
+        "and the raw output it was drawn from — re-run the command in the same "
+        "container to reproduce it. CVSS is a representative score mapped from "
+        "severity, not a computed vector._",
+        "",
         "## Findings",
     ]
     for f in findings:
@@ -38,6 +43,11 @@ def build_markdown(coord: Coordinator) -> str:
             f"- **poc:** `{f.poc}`" if f.poc else "- **poc:** n/a",
             f"- **fix:** {f.remediation}",
         ]
+        if f.command:
+            lines.append(f"- **verified by running:** `{f.command}`")
+        if f.output:
+            lines += ["", "  Raw output this finding was drawn from:", "", "  ```",
+                      *("  " + ln for ln in f.output.splitlines()), "  ```"]
     if not findings:
         lines.append("\n_No findings._")
     return "\n".join(lines)
@@ -67,7 +77,8 @@ def build_sarif(coord: Coordinator, version: str = "1.0.0") -> dict[str, Any]:
                 }
             }],
             "properties": {"severity": f.severity, "cvss": f.cvss,
-                           "remediation": f.remediation, "agent": f.agent, "id": f.id},
+                           "remediation": f.remediation, "agent": f.agent, "id": f.id,
+                           "command": f.command, "output": f.output},
         })
     return {
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json",

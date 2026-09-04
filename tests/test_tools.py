@@ -120,6 +120,38 @@ def test_report_finding_normalises_bad_severity():
     assert coord.findings[0].severity == "info"
 
 
+def test_report_finding_auto_attaches_last_command_as_provenance():
+    # An LLM-filed finding (no command/output passed to report_finding) is still
+    # stamped with the agent's most recent container command + its real output,
+    # so the finding is traceable to actual sandbox I/O rather than asserted.
+    coord = Coordinator("http://t")
+    sandbox = FakeSandbox(default=("Server: JuiceBox/0.1\nX: y", 0))
+    ctx = tool_ctx(coord, sandbox=sandbox, target="http://t")
+
+    execute(ctx, "run_command", {"command": "curl -s -i http://t/"})
+    execute(ctx, "report_finding", {
+        "title": "Server disclosure", "severity": "info", "endpoint": "/",
+        "evidence": "banner shown", "remediation": "hide it",
+    })
+    f = coord.findings[0]
+    assert f.command == "curl -s -i http://t/"          # the real last command
+    assert "Server: JuiceBox/0.1" in f.output           # the real output it returned
+
+
+def test_report_finding_keeps_explicit_provenance():
+    # When a scripted playbook passes command/output explicitly, they win over the
+    # last-command fallback (a finding can quote a command run earlier).
+    coord = Coordinator("http://t")
+    sandbox = FakeSandbox(default=("later output", 0))
+    ctx = tool_ctx(coord, sandbox=sandbox, target="http://t")
+    ctx.run("curl A")                                   # sets last_command = "curl A"
+    ctx.report(title="t", severity="low", endpoint="/x", evidence="e", remediation="r",
+               command="curl EARLIER", output="the matched line")
+    f = coord.findings[0]
+    assert f.command == "curl EARLIER"
+    assert f.output == "the matched line"
+
+
 # ---------------------------------------------------------------------------
 # skills tools
 # ---------------------------------------------------------------------------
