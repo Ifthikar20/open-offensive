@@ -1,444 +1,169 @@
 ---
-// OpenOffensive — landing page. Static, self-contained, no secrets.
-const year = new Date().getFullYear();
+import Site from "../layouts/Site.astro";
+
 const github = "https://github.com/Ifthikar20/open-offensive";
 const tools = ["nmap", "sqlmap", "nuclei", "httpx", "ffuf", "gobuster", "wafw00f"];
 const installCmd =
   "curl -sSL https://raw.githubusercontent.com/Ifthikar20/open-offensive/clean-main/install.sh | bash";
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OpenOffensive — multi-agent AI pentester</title>
-    <meta
-      name="description"
-      content="OpenOffensive spins up an isolated Kali container and turns a team of AI agents loose on your target — streaming every validated finding with a CVSS score, a proof-of-concept, and a fix. Open source, invite-only."
-    />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
-      rel="stylesheet"
-    />
-    <style>
-      :root {
-        --bg: #f5f1e8;
-        --panel: #efe9dc;
-        --ink: #1b1a16;
-        --muted: #6f6a5f;
-        --accent: #ef8a3c;
-        --accent-deep: #e0701a;
-        --dark: #17150f;
-        --line: rgba(27, 26, 22, 0.1);
-        --radius: 28px;
-      }
-      * { box-sizing: border-box; }
-      html { -webkit-text-size-adjust: 100%; }
-      body {
-        margin: 0;
-        background: var(--bg);
-        color: var(--ink);
-        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        -webkit-font-smoothing: antialiased;
-        line-height: 1.5;
-      }
-      .wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-      a { color: inherit; text-decoration: none; }
+<Site
+  title="OpenOffensive — multi-agent AI pentester"
+  description="OpenOffensive spins up an isolated Kali container and turns a team of AI agents loose on your target — streaming every validated finding with a CVSS score, a proof-of-concept, and a fix. Open source, invite-only."
+>
+  <!-- hero -->
+  <section class="hero">
+    <div class="hero-art" aria-hidden="true">
+      <svg class="hero-svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#e07a44" />
+            <stop offset="0.32" stop-color="#ee9a54" />
+            <stop offset="0.60" stop-color="#eeb877" />
+            <stop offset="1" stop-color="#e9c79a" />
+          </linearGradient>
+          <radialGradient id="sun" cx="0.4" cy="0.42" r="0.5">
+            <stop offset="0" stop-color="#ffe6b3" stop-opacity="0.95" />
+            <stop offset="0.5" stop-color="#f8c079" stop-opacity="0.5" />
+            <stop offset="1" stop-color="#f8c079" stop-opacity="0" />
+          </radialGradient>
+          <radialGradient id="haze" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0" stop-color="#8b93ad" stop-opacity="0.75" />
+            <stop offset="1" stop-color="#8b93ad" stop-opacity="0" />
+          </radialGradient>
+          <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#d98230" />
+            <stop offset="0.5" stop-color="#e9a942" />
+            <stop offset="1" stop-color="#f2c667" />
+          </linearGradient>
+          <linearGradient id="butteL" x1="0" y1="0" x2="0.25" y2="1">
+            <stop offset="0" stop-color="#c96a3a" />
+            <stop offset="1" stop-color="#853623" />
+          </linearGradient>
+          <linearGradient id="butteR" x1="1" y1="0" x2="0.7" y2="1">
+            <stop offset="0" stop-color="#c15f37" />
+            <stop offset="1" stop-color="#7c3324" />
+          </linearGradient>
+          <linearGradient id="dist" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#9aa0b6" />
+            <stop offset="1" stop-color="#b98a7f" />
+          </linearGradient>
+          <filter id="paint" x="-5%" y="-5%" width="110%" height="110%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.004 0.009" numOctaves="2" seed="7" result="n" />
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="34" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          <filter id="rough" x="-8%" y="-8%" width="116%" height="116%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="11" result="n" />
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="13" />
+          </filter>
+          <filter id="soft"><feGaussianBlur stdDeviation="19" /></filter>
+          <filter id="soft2"><feGaussianBlur stdDeviation="13" /></filter>
+          <filter id="grainf">
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" result="t" />
+            <feColorMatrix in="t" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 0" />
+          </filter>
+        </defs>
 
-      /* ---- nav ---- */
-      nav {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 26px 0 18px;
-      }
-      .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 21px; letter-spacing: -0.02em; }
-      .brand .mark { width: 26px; height: 26px; flex: none; }
-      .navlinks { display: flex; align-items: center; gap: 26px; font-size: 15px; font-weight: 500; color: #35322b; }
-      .navlinks a:hover { color: var(--accent-deep); }
-      .navlinks .dot { color: var(--accent); font-weight: 700; }
-      .btn {
-        display: inline-flex; align-items: center; gap: 10px;
-        background: var(--dark); color: #fff; font-weight: 600; font-size: 15px;
-        padding: 7px 7px 7px 16px; border-radius: 14px; border: 0; cursor: pointer;
-        transition: transform .12s ease, box-shadow .12s ease;
-      }
-      .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(23,21,15,.22); }
-      .btn .sq {
-        width: 30px; height: 30px; border-radius: 9px; background: var(--accent);
-        display: grid; place-items: center; flex: none;
-      }
-      .btn .sq svg { width: 16px; height: 16px; }
+        <!-- sky -->
+        <rect x="0" y="0" width="1600" height="600" fill="url(#sky)" filter="url(#paint)" />
+        <ellipse cx="640" cy="120" rx="900" ry="300" fill="#e85f52" opacity="0.28" />
+        <ellipse cx="600" cy="340" rx="720" ry="380" fill="url(#sun)" />
+        <ellipse cx="1330" cy="360" rx="560" ry="360" fill="url(#haze)" />
 
-      /* ---- hero ---- */
-      .hero {
-        position: relative; overflow: hidden; border-radius: var(--radius);
-        min-height: 560px; display: grid; place-items: center; text-align: center;
-        padding: 96px 24px; margin-top: 6px;
-        box-shadow: 0 30px 80px -40px rgba(120, 60, 10, .55);
-      }
-      .hero-art { position: absolute; inset: 0; z-index: 0; }
-      /* painterly desert landscape (inline SVG, self-contained) */
-      .hero-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-      .hero-art .grain {
-        position: absolute; inset: 0; opacity: .16; mix-blend-mode: overlay;
-        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-      }
-      .hero-inner { position: relative; z-index: 1; max-width: 900px; }
-      h1 {
-        margin: 0; color: #fff; font-weight: 800; letter-spacing: -0.03em;
-        font-size: clamp(38px, 6.4vw, 76px); line-height: 1.04;
-        text-shadow: 0 2px 30px rgba(60, 24, 8, .35);
-      }
-      h1 em { font-style: italic; font-weight: 700; }
-      .sub {
-        margin: 26px auto 0; max-width: 620px; color: #fff;
-        font-size: clamp(15px, 1.6vw, 18px); font-weight: 500; line-height: 1.6;
-        text-shadow: 0 1px 18px rgba(60, 24, 8, .4);
-      }
-      .cta-row { margin-top: 34px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
-      .cta {
-        display: inline-flex; align-items: center; gap: 12px;
-        background: var(--dark); color: #fff; font-weight: 600; font-size: 17px;
-        padding: 9px 9px 9px 20px; border-radius: 16px; cursor: pointer;
-        transition: transform .12s ease, box-shadow .12s ease;
-      }
-      .cta:hover { transform: translateY(-1px); box-shadow: 0 14px 34px rgba(23,21,15,.35); }
-      .cta .sq { width: 36px; height: 36px; border-radius: 11px; background: var(--accent); display: grid; place-items: center; }
-      .cta .sq svg { width: 19px; height: 19px; }
-      .cta-alt { color: #fff; font-size: 14px; font-weight: 500; opacity: .92; }
-      .cta-alt a { text-decoration: underline; text-underline-offset: 3px; }
+        <!-- painterly clouds -->
+        <g filter="url(#soft)">
+          <path d="M40 120 q170 -80 360 -22 q150 -46 280 26 q-120 74 -360 48 q-190 42 -280 -50Z" fill="#f8e2c8" opacity="0.95" />
+          <path d="M700 70 q170 -60 360 -10 q150 -34 280 26 q-150 66 -360 38 q-180 34 -280 -54Z" fill="#ef7f5f" opacity="0.72" />
+          <path d="M300 250 q190 -60 360 -8 q140 -24 250 28 q-170 62 -360 34 q-160 28 -250 -54Z" fill="#db6a70" opacity="0.5" />
+          <path d="M40 320 q170 -52 320 -8 q-70 60 -250 46 q-120 18 -70 -38Z" fill="#f0a488" opacity="0.62" />
+          <path d="M1050 200 q170 -50 330 0 q-80 64 -250 58 q-130 16 -80 -58Z" fill="#9aa2b8" opacity="0.6" />
+          <path d="M980 340 q150 -44 300 -4 q-70 56 -240 50 q-120 12 -60 -46Z" fill="#c98f8a" opacity="0.42" />
+        </g>
 
-      /* ---- trust strip ---- */
-      .trust { text-align: center; padding: 62px 0 56px; }
-      .trust .eyebrow { font-weight: 700; font-size: 15px; color: #2f2c25; }
-      .trust .chips {
-        margin-top: 22px; display: flex; flex-wrap: wrap; gap: 12px 14px;
-        align-items: center; justify-content: center;
-      }
-      .chip {
-        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-        font-size: 15px; font-weight: 600; color: #55503f;
-        background: var(--panel); border: 1px solid var(--line);
-        padding: 7px 14px; border-radius: 999px;
-      }
-      .chip .g { color: var(--accent-deep); }
+        <!-- distant blue-grey mesa -->
+        <g filter="url(#soft2)">
+          <path d="M820 560 L940 500 L1060 520 L1180 470 L1360 505 L1500 480 L1600 500 L1600 600 L820 600Z" fill="url(#dist)" opacity="0.8" />
+        </g>
 
-      /* ---- footer ---- */
-      footer {
-        border-top: 1px solid var(--line); margin-top: 10px; padding: 26px 0 44px;
-        display: flex; align-items: center; justify-content: space-between; gap: 16px;
-        font-size: 14px; color: var(--muted); flex-wrap: wrap;
-      }
-      footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
-      footer a:hover { color: var(--accent-deep); }
+        <!-- mid mauve buttes -->
+        <g filter="url(#rough)" opacity="0.9">
+          <path d="M400 560 L430 470 L470 465 L500 500 L560 495 L590 560Z" fill="#b26a52" />
+          <path d="M1140 560 L1170 495 L1250 490 L1275 520 L1320 560Z" fill="#a75f45" />
+        </g>
 
-      /* ---- install (open source) ---- */
-      .install { text-align: center; padding: 60px 0 8px; }
-      .install .eyebrow2 {
-        font-weight: 700; font-size: 13px; letter-spacing: .05em;
-        text-transform: uppercase; color: var(--accent-deep);
-      }
-      .ititle {
-        margin: 12px 0 0; font-weight: 800; letter-spacing: -0.02em;
-        font-size: clamp(26px, 3.6vw, 42px); line-height: 1.08;
-      }
-      .ititle em { font-style: italic; color: var(--accent-deep); font-weight: 800; }
-      .term {
-        max-width: 760px; margin: 30px auto 0; text-align: left;
-        background: var(--dark); color: #f3ede1; border-radius: 18px; overflow: hidden;
-        box-shadow: 0 24px 60px -30px rgba(23, 21, 15, .6);
-        border: 1px solid rgba(255, 255, 255, .06);
-      }
-      .term-bar {
-        display: flex; align-items: center; gap: 8px;
-        padding: 12px 12px 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, .08);
-      }
-      .term-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; background: rgba(255,255,255,.18); }
-      .term-dot:nth-child(1) { background: #ef6a5a; }
-      .term-dot:nth-child(2) { background: #ecab52; }
-      .term-dot:nth-child(3) { background: #8fbf7f; }
-      .term-name {
-        margin-left: 6px; font-size: 12px; color: rgba(243, 237, 225, .5);
-        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      }
-      .copy {
-        margin-left: auto; display: inline-flex; align-items: center; gap: 9px;
-        background: transparent; border: 0; color: #f3ede1; cursor: pointer;
-        font: inherit; font-weight: 600; font-size: 13px;
-        padding: 3px 3px 3px 12px; border-radius: 12px;
-        transition: background .12s ease;
-      }
-      .copy:hover { background: rgba(255, 255, 255, .07); }
-      .copy .sq {
-        width: 28px; height: 28px; border-radius: 8px; background: var(--accent);
-        display: grid; place-items: center; flex: none; transition: background .12s ease;
-      }
-      .copy .sq svg { width: 15px; height: 15px; }
-      .copy.copied .sq { background: #8fbf7f; }
-      .term-body {
-        padding: 18px; overflow-x: auto;
-        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-        font-size: 14px; line-height: 1.9;
-      }
-      .cmd { white-space: pre; }
-      .cmd.dim { color: rgba(243, 237, 225, .42); }
-      .prompt { color: var(--accent); font-weight: 700; margin-right: 10px; user-select: none; }
-      .isub { margin: 22px auto 0; max-width: 640px; color: var(--muted); font-size: 14px; }
-      .isub a {
-        color: var(--accent-deep); text-decoration: underline; text-underline-offset: 3px;
-        margin-left: 6px; font-weight: 600;
-      }
+        <!-- foreground buttes -->
+        <g filter="url(#rough)">
+          <path d="M0 560 L0 430 L70 420 L96 356 L250 352 L268 408 L360 420 L392 470 L392 560Z" fill="url(#butteL)" />
+          <path d="M96 356 L250 352 L268 408 L235 412 L215 366 L120 372Z" fill="#d9793f" opacity="0.55" />
+          <path d="M1210 560 L1210 452 L1250 446 L1276 404 L1420 400 L1446 452 L1540 462 L1560 508 L1600 520 L1600 560Z" fill="url(#butteR)" />
+          <path d="M1276 404 L1420 400 L1446 452 L1410 456 L1392 414 L1300 418Z" fill="#d97a44" opacity="0.5" />
+          <path d="M735 560 L748 512 L800 508 L818 540 L836 560Z" fill="#9d5238" opacity="0.92" />
+        </g>
 
-      @media (max-width: 720px) {
-        .navlinks { display: none; }
-        .hero { padding: 64px 18px; min-height: 500px; border-radius: 22px; }
-        .wrap { padding: 0 16px; }
-        .install { padding: 44px 0 8px; }
-        .term-body { font-size: 12.5px; padding: 16px; }
-      }
-    </style>
-  </head>
+        <!-- desert floor -->
+        <path d="M0 540 L1600 540 L1600 900 L0 900Z" fill="url(#floor)" filter="url(#paint)" />
+        <g filter="url(#soft2)" opacity="0.35">
+          <path d="M-40 640 q500 -60 900 -10 q400 -30 780 20 L1640 720 L-40 720Z" fill="#c06a2a" />
+          <path d="M-40 800 q600 -50 1680 10 L1640 900 L-40 900Z" fill="#f0c66a" opacity="0.6" />
+        </g>
 
-  <body>
-    <div class="wrap">
-      <!-- nav -->
-      <nav>
-        <div class="brand">
-          <svg class="mark" viewBox="0 0 32 32" fill="none" stroke="var(--accent-deep)" stroke-width="2.4">
-            <circle cx="16" cy="16" r="11" />
-            <circle cx="16" cy="16" r="4.5" />
-            <path d="M16 1v4M16 27v4M1 16h4M27 16h4" stroke-linecap="round" />
-          </svg>
-          <span>OpenOffensive</span>
-        </div>
-        <div class="navlinks">
-          <a href="#how">How it works</a><span class="dot">•</span>
-          <a href="#install">Install</a><span class="dot">•</span>
-          <a href={github + "/tree/main/docs"}>Docs</a><span class="dot">•</span>
-          <a href={github}>GitHub</a>
-        </div>
-        <a class="btn" href="#access">
+        <!-- paint grain -->
+        <rect x="0" y="0" width="1600" height="900" filter="url(#grainf)" opacity="0.14" style="mix-blend-mode:overlay" />
+      </svg>
+      <div class="grain"></div>
+    </div>
+    <div class="hero-inner">
+      <h1>The AI pentester that<br />works <em>with</em> your team, not just <em>for</em> you</h1>
+      <p class="sub">
+        OpenOffensive spins up an isolated Kali container and turns a team of AI agents loose on
+        your target — recon, injection, access — streaming every validated finding with a CVSS
+        score, a proof-of-concept, and a fix.
+      </p>
+      <div class="cta-row" id="access">
+        <a class="cta" href={github}>
           <span class="sq">
             <svg viewBox="0 0 24 24" fill="none" stroke="#17150f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
           </span>
-          Get access
+          Request access
         </a>
-      </nav>
-
-      <!-- hero -->
-      <section class="hero">
-        <div class="hero-art" aria-hidden="true">
-          <svg class="hero-svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
-            <defs>
-              <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="#e07a44" />
-                <stop offset="0.32" stop-color="#ee9a54" />
-                <stop offset="0.60" stop-color="#eeb877" />
-                <stop offset="1" stop-color="#e9c79a" />
-              </linearGradient>
-              <radialGradient id="sun" cx="0.4" cy="0.42" r="0.5">
-                <stop offset="0" stop-color="#ffe6b3" stop-opacity="0.95" />
-                <stop offset="0.5" stop-color="#f8c079" stop-opacity="0.5" />
-                <stop offset="1" stop-color="#f8c079" stop-opacity="0" />
-              </radialGradient>
-              <radialGradient id="haze" cx="0.5" cy="0.5" r="0.5">
-                <stop offset="0" stop-color="#8b93ad" stop-opacity="0.75" />
-                <stop offset="1" stop-color="#8b93ad" stop-opacity="0" />
-              </radialGradient>
-              <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="#d98230" />
-                <stop offset="0.5" stop-color="#e9a942" />
-                <stop offset="1" stop-color="#f2c667" />
-              </linearGradient>
-              <linearGradient id="butteL" x1="0" y1="0" x2="0.25" y2="1">
-                <stop offset="0" stop-color="#c96a3a" />
-                <stop offset="1" stop-color="#853623" />
-              </linearGradient>
-              <linearGradient id="butteR" x1="1" y1="0" x2="0.7" y2="1">
-                <stop offset="0" stop-color="#c15f37" />
-                <stop offset="1" stop-color="#7c3324" />
-              </linearGradient>
-              <linearGradient id="dist" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="#9aa0b6" />
-                <stop offset="1" stop-color="#b98a7f" />
-              </linearGradient>
-              <filter id="paint" x="-5%" y="-5%" width="110%" height="110%">
-                <feTurbulence type="fractalNoise" baseFrequency="0.004 0.009" numOctaves="2" seed="7" result="n" />
-                <feDisplacementMap in="SourceGraphic" in2="n" scale="34" xChannelSelector="R" yChannelSelector="G" />
-              </filter>
-              <filter id="rough" x="-8%" y="-8%" width="116%" height="116%">
-                <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="11" result="n" />
-                <feDisplacementMap in="SourceGraphic" in2="n" scale="13" />
-              </filter>
-              <filter id="soft"><feGaussianBlur stdDeviation="19" /></filter>
-              <filter id="soft2"><feGaussianBlur stdDeviation="13" /></filter>
-              <filter id="grainf">
-                <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" result="t" />
-                <feColorMatrix in="t" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 0" />
-              </filter>
-            </defs>
-
-            <!-- sky -->
-            <rect x="0" y="0" width="1600" height="600" fill="url(#sky)" filter="url(#paint)" />
-            <ellipse cx="640" cy="120" rx="900" ry="300" fill="#e85f52" opacity="0.28" />
-            <ellipse cx="600" cy="340" rx="720" ry="380" fill="url(#sun)" />
-            <ellipse cx="1330" cy="360" rx="560" ry="360" fill="url(#haze)" />
-
-            <!-- painterly clouds -->
-            <g filter="url(#soft)">
-              <path d="M40 120 q170 -80 360 -22 q150 -46 280 26 q-120 74 -360 48 q-190 42 -280 -50Z" fill="#f8e2c8" opacity="0.95" />
-              <path d="M700 70 q170 -60 360 -10 q150 -34 280 26 q-150 66 -360 38 q-180 34 -280 -54Z" fill="#ef7f5f" opacity="0.72" />
-              <path d="M300 250 q190 -60 360 -8 q140 -24 250 28 q-170 62 -360 34 q-160 28 -250 -54Z" fill="#db6a70" opacity="0.5" />
-              <path d="M40 320 q170 -52 320 -8 q-70 60 -250 46 q-120 18 -70 -38Z" fill="#f0a488" opacity="0.62" />
-              <path d="M1050 200 q170 -50 330 0 q-80 64 -250 58 q-130 16 -80 -58Z" fill="#9aa2b8" opacity="0.6" />
-              <path d="M980 340 q150 -44 300 -4 q-70 56 -240 50 q-120 12 -60 -46Z" fill="#c98f8a" opacity="0.42" />
-            </g>
-
-            <!-- distant blue-grey mesa -->
-            <g filter="url(#soft2)">
-              <path d="M820 560 L940 500 L1060 520 L1180 470 L1360 505 L1500 480 L1600 500 L1600 600 L820 600Z" fill="url(#dist)" opacity="0.8" />
-            </g>
-
-            <!-- mid mauve buttes -->
-            <g filter="url(#rough)" opacity="0.9">
-              <path d="M400 560 L430 470 L470 465 L500 500 L560 495 L590 560Z" fill="#b26a52" />
-              <path d="M1140 560 L1170 495 L1250 490 L1275 520 L1320 560Z" fill="#a75f45" />
-            </g>
-
-            <!-- foreground buttes -->
-            <g filter="url(#rough)">
-              <!-- left mesa -->
-              <path d="M0 560 L0 430 L70 420 L96 356 L250 352 L268 408 L360 420 L392 470 L392 560Z" fill="url(#butteL)" />
-              <!-- left mesa lit edge -->
-              <path d="M96 356 L250 352 L268 408 L235 412 L215 366 L120 372Z" fill="#d9793f" opacity="0.55" />
-              <!-- right mesa cluster -->
-              <path d="M1210 560 L1210 452 L1250 446 L1276 404 L1420 400 L1446 452 L1540 462 L1560 508 L1600 520 L1600 560Z" fill="url(#butteR)" />
-              <path d="M1276 404 L1420 400 L1446 452 L1410 456 L1392 414 L1300 418Z" fill="#d97a44" opacity="0.5" />
-              <!-- small central butte -->
-              <path d="M735 560 L748 512 L800 508 L818 540 L836 560Z" fill="#9d5238" opacity="0.92" />
-            </g>
-
-            <!-- desert floor -->
-            <path d="M0 540 L1600 540 L1600 900 L0 900Z" fill="url(#floor)" filter="url(#paint)" />
-            <g filter="url(#soft2)" opacity="0.35">
-              <path d="M-40 640 q500 -60 900 -10 q400 -30 780 20 L1640 720 L-40 720Z" fill="#c06a2a" />
-              <path d="M-40 800 q600 -50 1680 10 L1640 900 L-40 900Z" fill="#f0c66a" opacity="0.6" />
-            </g>
-
-            <!-- paint grain -->
-            <rect x="0" y="0" width="1600" height="900" filter="url(#grainf)" opacity="0.14" style="mix-blend-mode:overlay" />
-          </svg>
-          <div class="grain"></div>
-        </div>
-        <div class="hero-inner">
-          <h1>The AI pentester that<br />works <em>with</em> your team, not just <em>for</em> you</h1>
-          <p class="sub">
-            OpenOffensive spins up an isolated Kali container and turns a team of AI agents loose on
-            your target — recon, injection, access — streaming every validated finding with a CVSS
-            score, a proof-of-concept, and a fix.
-          </p>
-          <div class="cta-row" id="access">
-            <a class="cta" href={github}>
-              <span class="sq">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#17150f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-              </span>
-              Request access
-            </a>
-            <div class="cta-alt">Open source · Invite-only beta · <a href={github}>Have an invite? Sign in</a></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- install (open source) -->
-      <section class="install" id="install">
-        <div class="eyebrow2">Open source · MIT</div>
-        <h2 class="ititle">Run it yourself, in <em>one line</em>.</h2>
-        <div class="term" role="group" aria-label="Install OpenOffensive">
-          <div class="term-bar">
-            <span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
-            <span class="term-name">bash</span>
-            <button class="copy" id="copyBtn" type="button" data-cmd={installCmd} aria-label="Copy install command">
-              <span class="copy-label">Copy</span>
-              <span class="sq">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#17150f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
-              </span>
-            </button>
-          </div>
-          <div class="term-body">
-            <div class="cmd"><span class="prompt">$</span>{installCmd}</div>
-            <div class="cmd dim"><span class="prompt">$</span>openoffensive scan</div>
-          </div>
-        </div>
-        <div class="isub">
-          Python 3.9+ · Docker optional · scripted mode needs no API key.
-          <a href={github + "/tree/main/docs"}>Read the docs →</a>
-        </div>
-      </section>
-
-      <!-- trust strip -->
-      <section class="trust" id="how">
-        <div class="eyebrow">Powered by the tools you already trust</div>
-        <div class="chips">
-          {tools.map((t) => (
-            <span class="chip"><span class="g">$</span> {t}</span>
-          ))}
-        </div>
-      </section>
-
-      <!-- footer -->
-      <footer>
-        <div>© {year} OpenOffensive · MIT licensed</div>
-        <div class="fl">
-          <a href={github}>GitHub</a>
-          <a href={github + "/tree/main/docs"}>Docs</a>
-          <a href={github + "/blob/main/docs/SECURITY.md"}>Security</a>
-        </div>
-      </footer>
+        <div class="cta-alt">Open source · Invite-only beta · <a href={github}>Have an invite? Sign in</a></div>
+      </div>
     </div>
+  </section>
 
-    <script is:inline>
-      (function () {
-        var btn = document.getElementById("copyBtn");
-        if (!btn) return;
-        var label = btn.querySelector(".copy-label");
-        var original = label ? label.textContent : "Copy";
-        function done() {
-          btn.classList.add("copied");
-          if (label) label.textContent = "Copied";
-          setTimeout(function () {
-            btn.classList.remove("copied");
-            if (label) label.textContent = original;
-          }, 1500);
-        }
-        function fallback(cmd) {
-          try {
-            var ta = document.createElement("textarea");
-            ta.value = cmd;
-            ta.setAttribute("readonly", "");
-            ta.style.position = "absolute";
-            ta.style.left = "-9999px";
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand("copy");
-            document.body.removeChild(ta);
-          } catch (e) {}
-          done();
-        }
-        btn.addEventListener("click", function () {
-          var cmd = btn.getAttribute("data-cmd") || "";
-          try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              navigator.clipboard.writeText(cmd).then(done, function () { fallback(cmd); });
-            } else {
-              fallback(cmd);
-            }
-          } catch (e) {
-            fallback(cmd);
-          }
-        });
-      })();
-    </script>
-  </body>
-</html>
+  <!-- install (open source) -->
+  <section class="install" id="install">
+    <div class="eyebrow2">Open source · MIT</div>
+    <h2 class="ititle">Run it yourself, in <em>one line</em>.</h2>
+    <div class="term" role="group" aria-label="Install OpenOffensive">
+      <div class="term-bar">
+        <span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
+        <span class="term-name">bash</span>
+        <button class="copy" id="copyBtn" type="button" data-cmd={installCmd} aria-label="Copy install command">
+          <span class="copy-label">Copy</span>
+          <span class="sq">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#17150f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+          </span>
+        </button>
+      </div>
+      <div class="term-body">
+        <div class="cmd"><span class="prompt">$</span>{installCmd}</div>
+        <div class="cmd dim"><span class="prompt">$</span>openoffensive scan</div>
+      </div>
+    </div>
+    <div class="isub">
+      Python 3.9+ · Docker optional · scripted mode needs no API key.
+      <a href="/blog/openoffensive-in-ci">Add it to CI →</a>
+    </div>
+  </section>
+
+  <!-- trust strip -->
+  <section class="trust" id="how">
+    <div class="eyebrow">Powered by the tools you already trust</div>
+    <div class="chips">
+      {tools.map((t) => (
+        <span class="chip"><span class="g">$</span> {t}</span>
+      ))}
+    </div>
+  </section>
+</Site>

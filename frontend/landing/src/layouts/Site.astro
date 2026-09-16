@@ -1,0 +1,394 @@
+---
+// Shared site shell: head, global styles, nav, and footer. Self-contained.
+const year = new Date().getFullYear();
+const github = "https://github.com/Ifthikar20/open-offensive";
+const docs = github + "/tree/HEAD/docs"; // HEAD -> default branch, so it never 404s on a branch rename
+
+const {
+  title = "OpenOffensive — the open-source AI pentester",
+  description = "OpenOffensive spins up an isolated Kali container and turns a team of AI agents loose on your target — streaming every validated finding with a CVSS score, a proof-of-concept, and a fix. Open source, invite-only.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <style is:global>
+      :root {
+        --bg: #f5f1e8;
+        --panel: #efe9dc;
+        --ink: #1b1a16;
+        --muted: #6f6a5f;
+        --accent: #ef8a3c;
+        --accent-deep: #e0701a;
+        --dark: #17150f;
+        --line: rgba(27, 26, 22, 0.1);
+        --radius: 28px;
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.5;
+      }
+      .wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+      a { color: inherit; text-decoration: none; }
+
+      /* ---- nav ---- */
+      nav {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 26px 0 18px;
+      }
+      .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 21px; letter-spacing: -0.02em; }
+      .brand .mark { width: 26px; height: 26px; flex: none; }
+      .navlinks { display: flex; align-items: center; gap: 26px; font-size: 15px; font-weight: 500; color: #35322b; }
+      .navlinks a:hover { color: var(--accent-deep); }
+      .navlinks .dot { color: var(--accent); font-weight: 700; }
+      .btn {
+        display: inline-flex; align-items: center; gap: 10px;
+        background: var(--dark); color: #fff; font-weight: 600; font-size: 15px;
+        padding: 7px 7px 7px 16px; border-radius: 14px; border: 0; cursor: pointer;
+        transition: transform .12s ease, box-shadow .12s ease;
+      }
+      .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(23,21,15,.22); }
+      .btn .sq {
+        width: 30px; height: 30px; border-radius: 9px; background: var(--accent);
+        display: grid; place-items: center; flex: none;
+      }
+      .btn .sq svg { width: 16px; height: 16px; }
+
+      /* ---- hero ---- */
+      .hero {
+        position: relative; overflow: hidden; border-radius: var(--radius);
+        min-height: 560px; display: grid; place-items: center; text-align: center;
+        padding: 96px 24px; margin-top: 6px;
+        box-shadow: 0 30px 80px -40px rgba(120, 60, 10, .55);
+      }
+      .hero-art { position: absolute; inset: 0; z-index: 0; }
+      .hero-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+      .hero-art .grain {
+        position: absolute; inset: 0; opacity: .16; mix-blend-mode: overlay;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+      }
+      .hero-inner { position: relative; z-index: 1; max-width: 900px; }
+      h1 {
+        margin: 0; color: #fff; font-weight: 800; letter-spacing: -0.03em;
+        font-size: clamp(38px, 6.4vw, 76px); line-height: 1.04;
+        text-shadow: 0 2px 30px rgba(60, 24, 8, .35);
+      }
+      h1 em { font-style: italic; font-weight: 700; }
+      .sub {
+        margin: 26px auto 0; max-width: 620px; color: #fff;
+        font-size: clamp(15px, 1.6vw, 18px); font-weight: 500; line-height: 1.6;
+        text-shadow: 0 1px 18px rgba(60, 24, 8, .4);
+      }
+      .cta-row { margin-top: 34px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+      .cta {
+        display: inline-flex; align-items: center; gap: 12px;
+        background: var(--dark); color: #fff; font-weight: 600; font-size: 17px;
+        padding: 9px 9px 9px 20px; border-radius: 16px; cursor: pointer;
+        transition: transform .12s ease, box-shadow .12s ease;
+      }
+      .cta:hover { transform: translateY(-1px); box-shadow: 0 14px 34px rgba(23,21,15,.35); }
+      .cta .sq { width: 36px; height: 36px; border-radius: 11px; background: var(--accent); display: grid; place-items: center; }
+      .cta .sq svg { width: 19px; height: 19px; }
+      .cta-alt { color: #fff; font-size: 14px; font-weight: 500; opacity: .92; }
+      .cta-alt a { text-decoration: underline; text-underline-offset: 3px; }
+
+      /* ---- trust strip ---- */
+      .trust { text-align: center; padding: 62px 0 56px; }
+      .trust .eyebrow { font-weight: 700; font-size: 15px; color: #2f2c25; }
+      .trust .chips {
+        margin-top: 22px; display: flex; flex-wrap: wrap; gap: 12px 14px;
+        align-items: center; justify-content: center;
+      }
+      .chip {
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 15px; font-weight: 600; color: #55503f;
+        background: var(--panel); border: 1px solid var(--line);
+        padding: 7px 14px; border-radius: 999px;
+      }
+      .chip .g { color: var(--accent-deep); }
+
+      /* ---- install (open source) ---- */
+      .install { text-align: center; padding: 60px 0 8px; }
+      .install .eyebrow2 {
+        font-weight: 700; font-size: 13px; letter-spacing: .05em;
+        text-transform: uppercase; color: var(--accent-deep);
+      }
+      .ititle {
+        margin: 12px 0 0; font-weight: 800; letter-spacing: -0.02em;
+        font-size: clamp(26px, 3.6vw, 42px); line-height: 1.08;
+      }
+      .ititle em { font-style: italic; color: var(--accent-deep); font-weight: 800; }
+      .term {
+        max-width: 760px; margin: 30px auto 0; text-align: left;
+        background: var(--dark); color: #f3ede1; border-radius: 18px; overflow: hidden;
+        box-shadow: 0 24px 60px -30px rgba(23, 21, 15, .6);
+        border: 1px solid rgba(255, 255, 255, .06);
+      }
+      .term-bar {
+        display: flex; align-items: center; gap: 8px;
+        padding: 12px 12px 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, .08);
+      }
+      .term-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; background: rgba(255,255,255,.18); }
+      .term-dot:nth-child(1) { background: #ef6a5a; }
+      .term-dot:nth-child(2) { background: #ecab52; }
+      .term-dot:nth-child(3) { background: #8fbf7f; }
+      .term-name {
+        margin-left: 6px; font-size: 12px; color: rgba(243, 237, 225, .5);
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      .copy {
+        margin-left: auto; display: inline-flex; align-items: center; gap: 9px;
+        background: transparent; border: 0; color: #f3ede1; cursor: pointer;
+        font: inherit; font-weight: 600; font-size: 13px;
+        padding: 3px 3px 3px 12px; border-radius: 12px;
+        transition: background .12s ease;
+      }
+      .copy:hover { background: rgba(255, 255, 255, .07); }
+      .copy .sq {
+        width: 28px; height: 28px; border-radius: 8px; background: var(--accent);
+        display: grid; place-items: center; flex: none; transition: background .12s ease;
+      }
+      .copy .sq svg { width: 15px; height: 15px; }
+      .copy.copied .sq { background: #8fbf7f; }
+      .term-body {
+        padding: 18px; overflow-x: auto;
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 14px; line-height: 1.9;
+      }
+      .cmd { white-space: pre; }
+      .cmd.dim { color: rgba(243, 237, 225, .42); }
+      .prompt { color: var(--accent); font-weight: 700; margin-right: 10px; user-select: none; }
+      .isub { margin: 22px auto 0; max-width: 640px; color: var(--muted); font-size: 14px; }
+      .isub a {
+        color: var(--accent-deep); text-decoration: underline; text-underline-offset: 3px;
+        margin-left: 6px; font-weight: 600;
+      }
+
+      /* ---- page header (blog / article index) ---- */
+      .page-head { padding: 46px 0 6px; }
+      .page-head .eyebrow2 {
+        font-weight: 700; font-size: 13px; letter-spacing: .05em;
+        text-transform: uppercase; color: var(--accent-deep);
+      }
+      .page-title { margin: 10px 0 0; font-weight: 800; letter-spacing: -0.02em; font-size: clamp(30px, 4vw, 48px); line-height: 1.06; }
+      .page-title em { font-style: italic; color: var(--accent-deep); }
+      .page-lead { color: var(--muted); font-size: 17px; margin-top: 12px; max-width: 640px; }
+
+      /* ---- blog list ---- */
+      .posts { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; padding: 30px 0 70px; }
+      .post-card {
+        display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line);
+        border-radius: 20px; padding: 24px; transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+      }
+      .post-card:hover { transform: translateY(-2px); box-shadow: 0 16px 40px -24px rgba(23,21,15,.4); border-color: rgba(224,112,26,.45); }
+      .post-tag { display: inline-block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--accent-deep); }
+      .post-card h3 { margin: 12px 0 8px; font-size: 20px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; }
+      .post-card p { color: var(--muted); font-size: 15px; margin: 0; }
+      .post-meta { margin-top: 16px; font-size: 13px; color: var(--muted); }
+      .post-more { margin-top: 14px; font-size: 14px; font-weight: 600; color: var(--accent-deep); }
+
+      /* ---- article ---- */
+      .article { max-width: 720px; margin: 0 auto; padding: 10px 0 80px; }
+      .article .back { color: var(--muted); font-size: 14px; font-weight: 600; display: inline-block; margin-top: 8px; }
+      .article .back:hover { color: var(--accent-deep); }
+      .article-head { padding: 22px 0 22px; border-bottom: 1px solid var(--line); margin-bottom: 30px; }
+      .article-head h1 { color: var(--ink); font-size: clamp(28px, 4vw, 44px); font-weight: 800; letter-spacing: -0.02em; margin: 14px 0 12px; line-height: 1.12; text-shadow: none; }
+      .article-meta { color: var(--muted); font-size: 14px; }
+      .article-body { font-size: 17px; line-height: 1.75; color: #2b2922; }
+      .article-body h2 { font-size: 24px; font-weight: 800; letter-spacing: -0.01em; margin: 38px 0 12px; }
+      .article-body h3 { font-size: 19px; font-weight: 700; margin: 28px 0 8px; }
+      .article-body p { margin: 15px 0; }
+      .article-body ul { margin: 15px 0; padding-left: 22px; }
+      .article-body li { margin: 8px 0; }
+      .article-body a { color: var(--accent-deep); text-decoration: underline; text-underline-offset: 2px; }
+      .article-body strong { font-weight: 700; }
+      .article-body code {
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .88em;
+        background: var(--panel); padding: 2px 6px; border-radius: 6px;
+      }
+      .article-body pre {
+        background: var(--dark); color: #f3ede1; border-radius: 14px; padding: 16px 18px;
+        overflow-x: auto; font-size: 13.5px; line-height: 1.7; margin: 20px 0;
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      .article-body pre code { background: none; padding: 0; font-size: inherit; }
+      .article-body blockquote {
+        border-left: 3px solid var(--accent); margin: 20px 0; padding: 4px 0 4px 18px; color: var(--muted);
+      }
+
+      /* ---- footer ---- */
+      .site-footer { border-top: 1px solid var(--line); margin-top: 40px; background: var(--bg); }
+      .foot-top {
+        display: grid; grid-template-columns: 1.3fr 2fr; gap: 40px;
+        padding: 52px 0 40px;
+      }
+      .foot-brand .brand { margin-bottom: 14px; }
+      .foot-tag { color: var(--muted); font-size: 14px; max-width: 320px; margin: 0 0 16px; line-height: 1.6; }
+      .foot-social a {
+        display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 11px;
+        border: 1px solid var(--line); color: #45413a; transition: border-color .12s ease, color .12s ease;
+      }
+      .foot-social a:hover { border-color: var(--accent-deep); color: var(--accent-deep); }
+      .foot-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+      .foot-col h4 { margin: 0 0 14px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #2f2c25; }
+      .foot-col a { display: block; color: var(--muted); font-size: 14px; padding: 5px 0; }
+      .foot-col a:hover { color: var(--accent-deep); }
+      .foot-bottom {
+        border-top: 1px solid var(--line); padding: 20px 0 46px;
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        font-size: 13px; color: var(--muted); flex-wrap: wrap;
+      }
+
+      @media (max-width: 720px) {
+        .navlinks { display: none; }
+        .hero { padding: 64px 18px; min-height: 500px; border-radius: 22px; }
+        .wrap { padding: 0 16px; }
+        .install { padding: 44px 0 8px; }
+        .term-body { font-size: 12.5px; padding: 16px; }
+        .foot-top { grid-template-columns: 1fr; gap: 32px; }
+        .foot-cols { grid-template-columns: repeat(2, 1fr); }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="wrap">
+      <nav>
+        <a class="brand" href="/">
+          <svg class="mark" viewBox="0 0 32 32" fill="none" stroke="var(--accent-deep)" stroke-width="2.4">
+            <circle cx="16" cy="16" r="11" />
+            <circle cx="16" cy="16" r="4.5" />
+            <path d="M16 1v4M16 27v4M1 16h4M27 16h4" stroke-linecap="round" />
+          </svg>
+          <span>OpenOffensive</span>
+        </a>
+        <div class="navlinks">
+          <a href="/#install">Install</a><span class="dot">•</span>
+          <a href="/blog">Blog</a><span class="dot">•</span>
+          <a href={docs}>Docs</a><span class="dot">•</span>
+          <a href={github}>GitHub</a>
+        </div>
+        <a class="btn" href="/#access">
+          <span class="sq">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#17150f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </span>
+          Get access
+        </a>
+      </nav>
+
+      <slot />
+    </div>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <div class="foot-top">
+          <div class="foot-brand">
+            <div class="brand">
+              <svg class="mark" viewBox="0 0 32 32" fill="none" stroke="var(--accent-deep)" stroke-width="2.4">
+                <circle cx="16" cy="16" r="11" />
+                <circle cx="16" cy="16" r="4.5" />
+                <path d="M16 1v4M16 27v4M1 16h4M27 16h4" stroke-linecap="round" />
+              </svg>
+              <span>OpenOffensive</span>
+            </div>
+            <p class="foot-tag">
+              The open-source AI pentester. Autonomous agents that find, validate, and help you fix
+              real vulnerabilities.
+            </p>
+            <div class="foot-social">
+              <a href={github} aria-label="OpenOffensive on GitHub" target="_blank" rel="noopener">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a12 12 0 0 0-3.79 23.4c.6.1.82-.26.82-.58v-2c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.34-5.47-5.96 0-1.32.47-2.4 1.24-3.24-.12-.31-.54-1.53.12-3.18 0 0 1.01-.32 3.3 1.24a11.5 11.5 0 0 1 6 0c2.29-1.56 3.3-1.24 3.3-1.24.66 1.65.24 2.87.12 3.18.77.84 1.24 1.92 1.24 3.24 0 4.63-2.8 5.65-5.48 5.95.43.37.81 1.1.81 2.22v3.29c0 .32.22.69.83.57A12 12 0 0 0 12 .5Z" /></svg>
+              </a>
+            </div>
+          </div>
+          <div class="foot-cols">
+            <div class="foot-col">
+              <h4>Product</h4>
+              <a href="/#install">Install</a>
+              <a href="/#access">Request access</a>
+              <a href="/#how">The toolset</a>
+            </div>
+            <div class="foot-col">
+              <h4>Resources</h4>
+              <a href="/blog">Blog</a>
+              <a href={docs}>Docs</a>
+              <a href={github + "/blob/HEAD/docs/USAGE.md"}>Usage guide</a>
+              <a href={github + "/blob/HEAD/docs/ARCHITECTURE.md"}>Architecture</a>
+            </div>
+            <div class="foot-col">
+              <h4>Project</h4>
+              <a href={github}>GitHub</a>
+              <a href={github + "/issues"}>Issues</a>
+              <a href={github + "/blob/HEAD/docs/SECURITY.md"}>Security</a>
+              <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener">MIT License</a>
+            </div>
+          </div>
+        </div>
+        <div class="foot-bottom">
+          <span>© {year} OpenOffensive · MIT licensed</span>
+          <span>Authorized targets only.</span>
+        </div>
+      </div>
+    </footer>
+
+    <script is:inline>
+      (function () {
+        var btn = document.getElementById("copyBtn");
+        if (!btn) return;
+        var label = btn.querySelector(".copy-label");
+        var original = label ? label.textContent : "Copy";
+        function done() {
+          btn.classList.add("copied");
+          if (label) label.textContent = "Copied";
+          setTimeout(function () {
+            btn.classList.remove("copied");
+            if (label) label.textContent = original;
+          }, 1500);
+        }
+        function fallback(cmd) {
+          try {
+            var ta = document.createElement("textarea");
+            ta.value = cmd;
+            ta.setAttribute("readonly", "");
+            ta.style.position = "absolute";
+            ta.style.left = "-9999px";
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            document.body.removeChild(ta);
+          } catch (e) {}
+          done();
+        }
+        btn.addEventListener("click", function () {
+          var cmd = btn.getAttribute("data-cmd") || "";
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(cmd).then(done, function () { fallback(cmd); });
+            } else {
+              fallback(cmd);
+            }
+          } catch (e) {
+            fallback(cmd);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

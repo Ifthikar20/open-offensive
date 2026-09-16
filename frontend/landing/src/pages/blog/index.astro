@@ -1,0 +1,34 @@
+---
+import Site from "../../layouts/Site.astro";
+import { posts } from "../../posts.js";
+---
+
+<Site
+  title="Blog — OpenOffensive"
+  description="Notes on autonomous AI penetration testing — announcements, engineering deep-dives, and practical guides from the OpenOffensive team."
+>
+  <section class="page-head">
+    <div class="eyebrow2">Blog</div>
+    <h1 class="page-title">Notes from the <em>agents</em></h1>
+    <p class="page-lead">
+      Announcements, engineering deep-dives, and practical guides on autonomous AI penetration
+      testing.
+    </p>
+  </section>
+
+  <section class="posts">
+    {
+      posts.map((p) => (
+        <a class="post-card" href={`/blog/${p.slug}`}>
+          <span class="post-tag">{p.tag}</span>
+          <h3>{p.title}</h3>
+          <p>{p.excerpt}</p>
+          <div class="post-meta">
+            <time datetime={p.dateISO}>{p.date}</time> · {p.readingTime}
+          </div>
+          <div class="post-more">Read more →</div>
+        </a>
+      ))
+    }
+  </section>
+</Site>

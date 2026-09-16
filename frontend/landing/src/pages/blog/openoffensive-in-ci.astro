@@ -1,0 +1,68 @@
+---
+import BlogPost from "../../layouts/BlogPost.astro";
+---
+
+<BlogPost slug="openoffensive-in-ci">
+  <p>
+    The cheapest vulnerability to fix is the one that never merges. With a few lines of YAML,
+    OpenOffensive runs on every pull request and fails the build when it can prove a real issue — so
+    insecure code gets caught in review, not in production.
+  </p>
+
+  <h2>The workflow</h2>
+  <p>Drop this into <code>.github/workflows/openoffensive.yml</code>:</p>
+  <pre><code>name: openoffensive
+
+on:
+  pull_request:
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OpenOffensive
+        run: curl -sSL https://raw.githubusercontent.com/Ifthikar20/open-offensive/clean-main/install.sh | bash
+
+      - name: Run a scan
+        env:
+          ANTHROPIC_API_KEY: ${'{{'} secrets.ANTHROPIC_API_KEY {'}}'}
+        run: openoffensive scan --mode auto</code></pre>
+
+  <h2>How it behaves in CI</h2>
+  <ul>
+    <li><strong>Exit codes drive the gate.</strong> A clean run exits <code>0</code>; a run that files findings exits <code>2</code>, which fails the job and blocks the merge.</li>
+    <li><strong>Artifacts are written to disk.</strong> Each run saves its report, findings, and a SARIF file under <code>runs/</code>, so you can upload them or publish to code scanning.</li>
+    <li><strong>No key? No problem.</strong> Use <code>--mode scripted</code> for a fast, deterministic pass with zero dependencies and no API key.</li>
+  </ul>
+
+  <h2>Publishing results to GitHub code scanning</h2>
+  <p>
+    OpenOffensive writes SARIF 2.1.0, so findings can show up right in the pull request's Security
+    tab:
+  </p>
+  <pre><code>      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: runs/latest/findings.sarif</code></pre>
+
+  <h2>Keep it scoped</h2>
+  <p>
+    Point CI scans at code you own — the repository being built, or a staging URL you control. A
+    non-local URL target needs the explicit <code>--authorized</code> flag, a deliberate reminder
+    that you must have permission to test it.
+  </p>
+
+  <blockquote>
+    Store your model key as an encrypted Actions secret — never commit it. OpenOffensive reads it
+    from the environment and never writes it to disk.
+  </blockquote>
+
+  <p>
+    That's the whole setup. For every flag and scan mode, see the
+    <a href="https://github.com/Ifthikar20/open-offensive/blob/HEAD/docs/USAGE.md">usage guide</a>,
+    or read how the engine works in <a href="/blog/graph-of-agents">Inside the graph of agents</a>.
+  </p>
+</BlogPost>
