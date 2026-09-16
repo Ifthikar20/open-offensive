@@ -43,17 +43,48 @@ Point it at a git repo, a live URL, or a local directory.
 
 ## 🚀 Quickstart
 
+**Prerequisites:** Python 3.9+ · (optional) Docker for the sandboxed container · a model key for the
+AI agents ([Anthropic](https://console.anthropic.com/); scripted mode needs none).
+
+**Install** — one line puts the `openoffensive` CLI on your PATH (prefers `pipx`, falls back to `pip --user`):
+
 ```bash
-pip install -e .                                 # puts `openoffensive` on your PATH
-openoffensive doctor --build                     # check readiness, build the sandbox image
-openoffensive scan                               # scan the bundled demo app
-openoffensive scan https://github.com/org/repo   # clone a git repo into the container and scan it
-openoffensive serve                              # live dashboard (or ./run.sh)
+curl -sSL https://raw.githubusercontent.com/Ifthikar20/open-offensive/clean-main/install.sh | bash
+```
+
+<sub>Rather read before you pipe? The script is [`install.sh`](install.sh). Or install the package
+directly: <code>pipx install "openoffensive[llm] @ git+https://github.com/Ifthikar20/open-offensive.git"</code>.
+Set <code>OPENOFFENSIVE_NO_LLM=1</code> for the zero-dependency core (scripted mode only).</sub>
+
+**Configure** your AI provider (the agents need a key; scripted mode doesn't):
+
+```bash
+export ANTHROPIC_API_KEY="your-api-key"
+```
+
+**Run your first assessment:**
+
+```bash
+openoffensive scan                                     # bundled demo app
+openoffensive scan https://github.com/org/repo         # clone a git repo and scan it
+openoffensive scan https://your-app.com --authorized   # a live target you're allowed to test
+openoffensive serve                                    # live dashboard
 ```
 
 `scan` with no target starts a bundled, deliberately vulnerable demo app on the host, reachable by
 the sandbox (`host.docker.internal` for Docker, `127.0.0.1` for local), scans it, prints the live
 log, writes artifacts to `runs/`, and exits `2`. A non-local URL target requires `--authorized`.
+
+<details>
+<summary><b>Install from source</b> (for contributors)</summary>
+
+```bash
+git clone https://github.com/Ifthikar20/open-offensive.git
+cd open-offensive
+pip install -e '.[llm]'          # editable install with the LLM extra
+openoffensive doctor --build     # check readiness, build the sandbox image
+```
+</details>
 
 > [!TIP]
 > **No Docker daemon, or a locked-down network?** Set `OPENOFFENSIVE_SANDBOX=local` to run the tools
