@@ -202,6 +202,7 @@ defaults run scripted mode against the bundled demo.
 | `OPENOFFENSIVE_MAX_TOKENS` | `4096` | Max tokens per model call (LLM mode). |
 | `OPENOFFENSIVE_MAX_STEPS` | `24` | Per-agent tool-call budget in LLM mode. |
 | `OPENOFFENSIVE_SANDBOX` | `auto` | Execution backend for tool calls: `auto` (Docker if a daemon is reachable, else local host execution), `docker` (require a Kali container), or `local` (run tools directly on the host — no container isolation, only host-installed tools). |
+| `OPENOFFENSIVE_DOCKER_AUTOSTART` | `1` | When Docker is wanted (`auto`/`docker`) but the daemon is down, try to start it (`service`/`systemctl`, or `dockerd` directly) before falling back. Needs root or passwordless sudo. Set `0` to disable. |
 | `OPENOFFENSIVE_SANDBOX_IMAGE` | `openoffensive-sandbox:kali` | The container image a scan runs in. A tag starting with `openoffensive-sandbox` is built from the bundled `Dockerfile`; any other tag is `docker pull`ed instead. |
 | `OPENOFFENSIVE_SANDBOX_NETWORK` | (empty) | Docker network for the scan container. Empty uses the default bridge; set it to attach the container to a specific network. |
 

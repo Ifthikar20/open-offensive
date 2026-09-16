@@ -91,6 +91,9 @@ class Settings:
     # execution), "docker" (require a container), or "local" (run tools on the
     # host — no container isolation). Docker stays the default where available.
     sandbox_backend: str = "auto"
+    # When Docker is wanted (auto/docker) but the daemon is down, try to start it
+    # before falling back. Best-effort; needs root or a service manager.
+    docker_autostart: bool = True
 
     # --- run persistence ---
     runs_dir: str = "runs"
@@ -130,6 +133,7 @@ def load_settings() -> Settings:
         sandbox_image=_env("OPENOFFENSIVE_SANDBOX_IMAGE") or "openoffensive-sandbox:kali",
         sandbox_network=_env("OPENOFFENSIVE_SANDBOX_NETWORK"),
         sandbox_backend=(_env("OPENOFFENSIVE_SANDBOX") or "auto").lower(),
+        docker_autostart=_env_bool("OPENOFFENSIVE_DOCKER_AUTOSTART", True),
         runs_dir=_env("OPENOFFENSIVE_RUNS_DIR") or "runs",
         scope_allow=tuple(
             h for h in (s.strip() for s in _env("OPENOFFENSIVE_SCOPE").split(",")) if h

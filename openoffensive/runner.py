@@ -15,8 +15,8 @@ from .coordinator import Coordinator
 from .llm import llm_available, preflight_model
 from .models import ScanResult
 from .persistence import RunStore
-from .sandbox import (SANDBOX_DIR, SandboxError, docker_available, open_sandbox,
-                       resolve_backend)
+from .sandbox import (SANDBOX_DIR, LocalSandbox, SandboxError, docker_available,
+                       open_sandbox, resolve_backend, try_start_docker_daemon)
 
 _REPO_HOSTS = ("github.com", "gitlab.com", "bitbucket.org")
 
@@ -95,7 +95,7 @@ def run_scan(coord: Coordinator, *, settings: Optional[Settings] = None,
     coord.mode = mode
     coord.status = "running"
     coord.started_at = time.time()
-    backend = resolve_backend(settings) if created_sandbox else "injected"
+    backend = (settings.sandbox_backend or "auto") if created_sandbox else "injected"
     coord.emit("system", None,
                f"scan started against {coord.target}  [mode: {mode} · sandbox: {backend}]")
     if note:
@@ -120,20 +120,57 @@ def run_scan(coord: Coordinator, *, settings: Optional[Settings] = None,
                     "and run `openoffensive doctor`, or pass --mode scripted to run the "
                     "no-key demo playbook.")
         if created_sandbox:
-            if backend == "docker":
+            desired = (settings.sandbox_backend or "auto").lower()
+            if desired not in ("docker", "local"):
+                desired = "auto"
+
+            # If Docker is wanted (explicitly or via auto) but the daemon is down,
+            # optionally try to start it before deciding the backend.
+            if (desired in ("docker", "auto") and settings.docker_autostart
+                    and not docker_available()[0]):
+                coord.emit("system", None, "Docker daemon not running — attempting to start it…")
+                started, why = try_start_docker_daemon(emit=_emit)
+                coord.emit("system", None,
+                           "Docker daemon is up" if started
+                           else f"could not start the Docker daemon: {why}")
+
+            resolved = resolve_backend(settings)   # reflects a just-started daemon
+            if resolved == "docker":
                 ok, reason = docker_available()
                 if not ok:
                     raise SandboxError(
                         f"Docker is required to run a scan but is unavailable: {reason}. "
                         "Start the Docker daemon (see `openoffensive doctor`), or set "
                         "OPENOFFENSIVE_SANDBOX=local to run the tools on the host.")
+                sandbox = open_sandbox(scan_id, settings, emit=_emit)
+                try:
+                    sandbox.ensure_image(dockerfile_dir=SANDBOX_DIR)
+                    sandbox.start()
+                except SandboxError as e:
+                    if desired != "auto":
+                        raise
+                    # auto: the daemon is up but the image/container cannot be made
+                    # available here (e.g. the image can't be pulled or built) — fall
+                    # back to host execution rather than failing the scan.
+                    coord.emit("system", None,
+                               f"Docker image/container unavailable ({e}); falling back to "
+                               "local host execution (no container isolation)")
+                    try:
+                        sandbox.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    sandbox = LocalSandbox(scan_id, emit=_emit)
+                    sandbox.start()
             else:
                 coord.emit("system", None,
                            "running tools on the host (local sandbox — no container "
                            "isolation); set OPENOFFENSIVE_SANDBOX=docker to require a container")
-            sandbox = open_sandbox(scan_id, settings, emit=_emit)
-        sandbox.ensure_image(dockerfile_dir=SANDBOX_DIR)
-        sandbox.start()
+                sandbox = open_sandbox(scan_id, settings, emit=_emit)
+                sandbox.ensure_image(dockerfile_dir=SANDBOX_DIR)
+                sandbox.start()
+        else:
+            sandbox.ensure_image(dockerfile_dir=SANDBOX_DIR)
+            sandbox.start()
 
         workspace_path = None
         kind = classify_target(coord.target)

@@ -106,6 +106,7 @@ def build_settings(tmp_path, **over) -> Settings:
         speed=0.0,
         llm_mode="scripted",
         api_key_present=False,
+        docker_autostart=False,   # never try to spawn a real daemon in tests
         runs_dir=str(Path(tmp_path) / "runs"),
     )
     params.update(over)

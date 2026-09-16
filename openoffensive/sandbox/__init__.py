@@ -24,7 +24,8 @@ SANDBOX_DIR = Path(__file__).resolve().parent  # holds the Dockerfile
 
 __all__ = [
     "DockerSandbox", "LocalSandbox", "FakeSandbox", "ExecResult", "SandboxError",
-    "docker_available", "resolve_backend", "open_sandbox", "SANDBOX_DIR",
+    "docker_available", "try_start_docker_daemon", "resolve_backend", "open_sandbox",
+    "SANDBOX_DIR",
 ]
 
 
@@ -39,6 +40,70 @@ def docker_available() -> tuple[bool, str]:
     if cp.returncode != 0:
         return False, "the Docker daemon is not running or not reachable"
     return True, ""
+
+
+def try_start_docker_daemon(emit: Emit = None, timeout: float = 30.0) -> tuple[bool, str]:
+    """Best-effort: bring up a Docker daemon that isn't running.
+
+    Tries a service manager first (``service`` / ``systemctl``), then launches
+    ``dockerd`` directly when we have the privileges. Never raises; returns
+    ``(up, message)``. It can only work where this process may actually start a
+    daemon (root, or passwordless sudo / a service manager) — otherwise it reports
+    why it couldn't, and the caller falls back to local execution.
+    """
+    import os
+    import subprocess
+    import time
+
+    def _log(msg: str) -> None:
+        if emit is not None:
+            try:
+                emit("system", msg)
+            except Exception:  # noqa: BLE001
+                pass
+
+    if docker_available()[0]:
+        return True, "already running"
+    if shutil.which("docker") is None:
+        return False, "the 'docker' CLI is not installed"
+
+    def _wait(secs: float) -> bool:
+        end = time.time() + secs
+        while time.time() < end:
+            if docker_available()[0]:
+                return True
+            time.sleep(0.5)
+        return False
+
+    is_root = hasattr(os, "geteuid") and os.geteuid() == 0
+    sudo = [] if is_root else (["sudo", "-n"] if shutil.which("sudo") else None)
+
+    # 1) a managed service, if a service manager is present and we can invoke it
+    for svc in (["service", "docker", "start"], ["systemctl", "start", "docker"]):
+        if shutil.which(svc[0]) is None or sudo is None:
+            continue
+        try:
+            subprocess.run([*sudo, *svc], capture_output=True, timeout=20)
+        except Exception:  # noqa: BLE001
+            continue
+        if _wait(min(timeout, 12)):
+            _log(f"Docker daemon started via {svc[0]}")
+            return True, f"started via {svc[0]}"
+
+    # 2) launch dockerd directly (needs root)
+    if shutil.which("dockerd") is not None and is_root:
+        try:
+            subprocess.Popen(["dockerd"], stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+        except Exception as e:  # noqa: BLE001
+            return False, f"could not launch dockerd: {e}"
+        if _wait(timeout):
+            return True, "launched dockerd"
+        return False, "dockerd was launched but did not become ready in time"
+
+    if not is_root and sudo is None:
+        return False, "insufficient privileges (need root or passwordless sudo)"
+    return False, "no available method to start the Docker daemon"
 
 
 def resolve_backend(settings: Any) -> str:
