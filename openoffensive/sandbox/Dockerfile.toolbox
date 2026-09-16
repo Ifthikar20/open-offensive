@@ -6,11 +6,9 @@
 # when the environment needs one. Produces the same interface the engine expects:
 # a keep-alive container whose /workspace holds the target, driven via docker exec.
 #
-# Gaps: a few tools are apt-native and not cleanly installable from the allowed
-# channels here — nmap (C, needs a static binary), nikto (Perl SSL/XML modules),
-# whatweb (Ruby). Add them via a static binary or a vendored prebuilt image if
-# your environment can reach them; the engine's agents probe with curl/python
-# and the scanners below in the meantime.
+# nmap ships as a static binary (musl). nikto (Perl SSL/XML modules) and whatweb
+# (Ruby) remain apt-native gaps — add them via a vendored prebuilt image if your
+# environment can reach one; the agents probe with curl/python otherwise.
 FROM mcr.microsoft.com/devcontainers/python:3.12
 
 # HTTP(S)_PROXY are predefined build args: Docker forwards them to RUN steps and
@@ -40,7 +38,8 @@ RUN set -eux; \
   curl -fsSL -o /tmp/gobuster.tgz https://github.com/OJ/gobuster/releases/download/v3.6.0/gobuster_Linux_x86_64.tar.gz     && tar -xzf /tmp/gobuster.tgz -C /usr/local/bin gobuster; \
   curl -fsSL -o /tmp/nuclei.zip   https://github.com/projectdiscovery/nuclei/releases/download/v3.3.7/nuclei_3.3.7_linux_amd64.zip && unzip -oq /tmp/nuclei.zip -d /usr/local/bin nuclei; \
   curl -fsSL -o /tmp/httpx.zip    https://github.com/projectdiscovery/httpx/releases/download/v1.6.9/httpx_1.6.9_linux_amd64.zip   && unzip -oq /tmp/httpx.zip  -d /usr/local/bin httpx; \
-  chmod +x /usr/local/bin/ffuf /usr/local/bin/gobuster /usr/local/bin/nuclei /usr/local/bin/httpx; \
+  curl -fsSL -o /tmp/nmap.zip     https://github.com/ernw/static-toolbox/releases/download/nmap-v7.94SVN/nmap-7.94SVN-x86_64-portable.zip && unzip -oq /tmp/nmap.zip -d /tmp nmap && mv /tmp/nmap /usr/local/bin/nmap; \
+  chmod +x /usr/local/bin/ffuf /usr/local/bin/gobuster /usr/local/bin/nuclei /usr/local/bin/httpx /usr/local/bin/nmap; \
   rm -f /tmp/*.tgz /tmp/*.zip
 
 WORKDIR /workspace
