@@ -1,0 +1,12 @@
+# OpenOffensive backend runtime dependencies.
+Django==5.1.15
+djangorestframework==3.17.2
+django-cors-headers==4.9.0
+
+# Production extras (uncomment as needed):
+# psycopg[binary]==3.2.3      # PostgreSQL driver (set POSTGRES_DB in .env to use)
+# gunicorn==23.0.0            # WSGI server
+
+# The engine (openoffensive) is invoked as a subprocess; install it separately
+# from the repo root (`pip install -e .`) so `python -m openoffensive` resolves.
+# The engine's own LLM dependency (anthropic) lives with the engine, not here.
