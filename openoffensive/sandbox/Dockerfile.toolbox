@@ -1,0 +1,47 @@
+# Portable pentest-toolbox image — builds even where Docker Hub and the distro
+# apt mirrors are unreachable. The base is pulled from Microsoft's container
+# registry (reachable in environments that block Docker Hub's blob CDN), and the
+# tools are installed from PyPI, git-over-HTTPS, and static GitHub Release
+# binaries. Build it with build-image.sh, which wires in an egress proxy + CA
+# when the environment needs one. Produces the same interface the engine expects:
+# a keep-alive container whose /workspace holds the target, driven via docker exec.
+#
+# Gaps: a few tools are apt-native and not cleanly installable from the allowed
+# channels here — nmap (C, needs a static binary), nikto (Perl SSL/XML modules),
+# whatweb (Ruby). Add them via a static binary or a vendored prebuilt image if
+# your environment can reach them; the engine's agents probe with curl/python
+# and the scanners below in the meantime.
+FROM mcr.microsoft.com/devcontainers/python:3.12
+
+# HTTP(S)_PROXY are predefined build args: Docker forwards them to RUN steps and
+# does NOT persist them in the final image. The CA lets pip/curl/git trust a
+# TLS-terminating egress proxy; build-image.sh supplies ca.crt (empty when unused).
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+COPY ca.crt /usr/local/share/ca-certificates/build-proxy-ca.crt
+ENV PIP_CERT=/usr/local/share/ca-certificates/build-proxy-ca.crt \
+    REQUESTS_CA_BUNDLE=/usr/local/share/ca-certificates/build-proxy-ca.crt \
+    CURL_CA_BUNDLE=/usr/local/share/ca-certificates/build-proxy-ca.crt \
+    GIT_SSL_CAINFO=/usr/local/share/ca-certificates/build-proxy-ca.crt \
+    SSL_CERT_FILE=/usr/local/share/ca-certificates/build-proxy-ca.crt
+RUN update-ca-certificates 2>/dev/null || true
+
+# Python scanners (PyPI)
+RUN pip install --no-cache-dir wafw00f wapiti3 dirsearch arjun dnspython
+
+# git-cloned tools: sqlmap (python), nikto (perl)
+RUN git clone --depth 1 https://github.com/sqlmapproject/sqlmap.git /opt/sqlmap \
+ && printf '#!/bin/sh\nexec python3 /opt/sqlmap/sqlmap.py "$@"\n' > /usr/local/bin/sqlmap \
+ && chmod +x /usr/local/bin/sqlmap
+
+# static scanner binaries from GitHub Releases
+RUN set -eux; \
+  curl -fsSL -o /tmp/ffuf.tgz     https://github.com/ffuf/ffuf/releases/download/v2.1.0/ffuf_2.1.0_linux_amd64.tar.gz     && tar -xzf /tmp/ffuf.tgz     -C /usr/local/bin ffuf; \
+  curl -fsSL -o /tmp/gobuster.tgz https://github.com/OJ/gobuster/releases/download/v3.6.0/gobuster_Linux_x86_64.tar.gz     && tar -xzf /tmp/gobuster.tgz -C /usr/local/bin gobuster; \
+  curl -fsSL -o /tmp/nuclei.zip   https://github.com/projectdiscovery/nuclei/releases/download/v3.3.7/nuclei_3.3.7_linux_amd64.zip && unzip -oq /tmp/nuclei.zip -d /usr/local/bin nuclei; \
+  curl -fsSL -o /tmp/httpx.zip    https://github.com/projectdiscovery/httpx/releases/download/v1.6.9/httpx_1.6.9_linux_amd64.zip   && unzip -oq /tmp/httpx.zip  -d /usr/local/bin httpx; \
+  chmod +x /usr/local/bin/ffuf /usr/local/bin/gobuster /usr/local/bin/nuclei /usr/local/bin/httpx; \
+  rm -f /tmp/*.tgz /tmp/*.zip
+
+WORKDIR /workspace
+CMD ["sleep", "infinity"]
