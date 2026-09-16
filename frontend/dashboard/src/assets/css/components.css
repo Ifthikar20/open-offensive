@@ -1,0 +1,45 @@
+/* Legacy component classes. Most UI is shadcn-vue + Tailwind now; these remain
+   for the few hand-written surfaces (form fallbacks, the Analytics-style page
+   header). NOTE: this file is intentionally un-layered (see utilities.css). */
+
+/* Text input / select fallback (shadcn Input is preferred). */
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: var(--font-base);
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast);
+}
+.form-input:focus {
+  outline: none;
+  border-color: var(--text-primary);
+}
+.form-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Page header (title + subtitle + right-aligned actions). */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: var(--font-3xl);
+  font-weight: 400;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.page-subtitle {
+  font-size: var(--font-base);
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
