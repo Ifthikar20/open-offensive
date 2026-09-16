@@ -1,0 +1,271 @@
+"""Command-line interface: ``openoffensive <scan|serve|list|report|doctor>``.
+
+Exit codes for ``scan`` (CI-friendly): 0 = clean, 1 = error, 2 = findings.
+The real path needs Docker (and an LLM key for the agentic mode); ``doctor``
+checks the environment and can pre-build the sandbox image.
+"""
+
+from __future__ import annotations
+
+import argparse
+import dataclasses
+import queue
+import sys
+import threading
+import uuid
+from urllib.parse import urlparse
+
+from . import __version__
+from .config import Settings, load_settings
+from .coordinator import Coordinator
+from .demo_target import serve_in_thread
+from .persistence import RunStore
+from .runner import classify_target, run_scan
+
+_GLYPH = {"system": "·", "phase": "▸", "think": "·", "skill": "◆", "tool": "→",
+          "finding": "⚑", "graph": "○", "report": "★", "error": "✕"}
+_LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1", "host.docker.internal")
+
+
+def _is_local(target: str) -> bool:
+    host = urlparse(target if "//" in target else "//" + target).hostname or ""
+    return host in _LOCAL_HOSTS or host.endswith(".localhost")
+
+
+def _safe_line(text: str, encoding: str) -> str:
+    """A version of ``text`` that ``encoding`` can represent — used as a fallback so
+    the live log's glyphs/em-dashes never crash a Windows console (cp1252) when
+    stdout is piped/captured and can't be reconfigured to UTF-8."""
+    enc = encoding or "utf-8"
+    try:
+        text.encode(enc)
+        return text
+    except (UnicodeEncodeError, LookupError):
+        return text.encode(enc, "replace").decode(enc, "replace")
+
+
+def _safe_print(text: str) -> None:
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(_safe_line(text, getattr(sys.stdout, "encoding", None) or "utf-8"))
+
+
+def _settings_for(args: argparse.Namespace) -> Settings:
+    s = load_settings()
+    repl: dict = {}
+    if getattr(args, "mode", None):
+        repl["llm_mode"] = args.mode
+    if getattr(args, "model", None):
+        repl["model"] = args.model
+    if getattr(args, "runs_dir", None):
+        repl["runs_dir"] = args.runs_dir
+    if getattr(args, "sandbox", None):
+        repl["sandbox_backend"] = args.sandbox
+    return dataclasses.replace(s, **repl) if repl else s
+
+
+def _stream_and_run(coord: Coordinator, run_fn) -> None:
+    """Run a scan in a thread while printing its live log to stdout."""
+    sub = coord.subscribe()
+    done = threading.Event()
+
+    def _worker() -> None:
+        try:
+            run_fn()
+        finally:
+            done.set()
+
+    threading.Thread(target=_worker, daemon=True).start()
+    while not done.is_set() or not sub.empty():
+        try:
+            ev = sub.get(timeout=0.2)
+        except queue.Empty:
+            continue
+        g = _GLYPH.get(ev.level, "·")
+        _safe_print(f"  {g} {ev.agent:<18} {ev.message}")
+
+
+def cmd_scan(args: argparse.Namespace) -> int:
+    settings = _settings_for(args)
+    store = RunStore(settings.runs_dir)
+    scan_id = f"scan-{uuid.uuid4().hex[:8]}"
+
+    demo_srv = None
+    if args.target:
+        target = args.target
+        if classify_target(target) == "url":
+            if "//" not in target:
+                target = "http://" + target
+            if not _is_local(target) and not args.authorized:
+                print("Refusing to scan a non-local target without authorization.\n"
+                      "Only scan systems you own or have explicit written permission to test.\n"
+                      "Re-run with --authorized once you have confirmed you are in scope.",
+                      file=sys.stderr)
+                return 1
+    else:
+        # Start the bundled demo on all interfaces. The Docker sandbox reaches it via
+        # host.docker.internal; the local (host-execution) sandbox reaches it on the
+        # loopback, where host.docker.internal does not resolve.
+        from .sandbox import resolve_backend
+        demo_host = "127.0.0.1" if resolve_backend(settings) == "local" else "host.docker.internal"
+        demo_srv, _ = serve_in_thread("0.0.0.0", 0)
+        port = demo_srv.server_address[1]
+        target = f"http://{demo_host}:{port}"
+        print(f"  (no target given — scanning the bundled demo app at {target})\n")
+
+    coord = Coordinator(target)
+    result_box: dict = {}
+
+    def _run() -> None:
+        result_box["res"] = run_scan(coord, settings=settings, scan_id=scan_id, store=store)
+
+    try:
+        _stream_and_run(coord, _run)
+    finally:
+        if demo_srv is not None:
+            demo_srv.shutdown()
+            demo_srv.server_close()
+
+    res = result_box.get("res")
+    if res is None:
+        return 1
+    print(f"\n  Report: {store.dir_for(scan_id) / 'report.md'}")
+    print(f"  SARIF : {store.dir_for(scan_id) / 'findings.sarif'}")
+    if res.status == "error":
+        return 1
+    return 2 if len(res.findings) > 0 else 0
+
+
+def _check_model_api(settings) -> tuple[bool, str]:
+    """Make a tiny real API call so a broken model connection shows up here as one
+    clear line, instead of later as three opaque 'crashed: Connection error' rows.
+    Shares the exact preflight the scan runs, so doctor and scan agree."""
+    from .llm import preflight_model
+    return preflight_model(settings)
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    from .sandbox import SANDBOX_DIR, docker_available, open_sandbox, resolve_backend
+    settings = load_settings()
+    ok, reason = docker_available()
+    backend = resolve_backend(settings)
+    intended_mode = "scripted" if settings.llm_mode == "scripted" else "llm"
+    print(f"docker daemon    : {'OK' if ok else 'UNAVAILABLE — ' + reason}")
+    print(f"sandbox backend  : {backend}"
+          + ("  (no Docker → tools run on the host, no isolation)" if backend == "local" else ""))
+    print(f"sandbox image    : {settings.sandbox_image}")
+    print(f"ANTHROPIC_API_KEY: {'set' if settings.api_key_present else 'not set'}")
+    print(f"mode             : {'llm (' + settings.model + ')' if intended_mode == 'llm' else 'scripted'}")
+    if intended_mode == "llm" and settings.api_key_present and not args.no_api_check:
+        api_ok, api_msg = _check_model_api(settings)
+        print(f"model API        : {api_msg}")
+        if not api_ok:
+            print("  (the agents call the model from the host; fix this or they crash on "
+                  "the first step)", file=sys.stderr)
+    if intended_mode == "llm" and not settings.api_key_present:
+        print("  set ANTHROPIC_API_KEY to run model-driven scans (or pass --mode scripted)",
+              file=sys.stderr)
+    if backend == "docker" and not ok:
+        print("\nThe docker backend is selected but the daemon is unavailable. Start it, or "
+              "set OPENOFFENSIVE_SANDBOX=local to run the tools on the host.", file=sys.stderr)
+        return 1
+    if args.build:
+        if backend == "local":
+            print("\nlocal backend: no image to build (tools run on the host).")
+            return 0
+        print("\nbuilding the sandbox image (first time pulls Kali — slow)…")
+        sb = open_sandbox("doctor", settings, emit=lambda level, msg: print("  " + msg))
+        try:
+            sb.ensure_image(dockerfile_dir=SANDBOX_DIR)
+            print("image ready.")
+        except Exception as e:  # noqa: BLE001
+            print(f"image build/pull failed: {e}", file=sys.stderr)
+            return 1
+    return 0
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    from .server import main as serve_main
+    serve_main(open_browser=not args.no_open)
+    return 0
+
+
+def cmd_list(args: argparse.Namespace) -> int:
+    settings = _settings_for(args)
+    runs = RunStore(settings.runs_dir).list_runs()
+    if not runs:
+        print(f"No runs yet in {settings.runs_dir}/")
+        return 0
+    print(f"{'SCAN ID':<16} {'STATUS':<8} {'MODE':<9} {'FINDINGS':<9} TARGET")
+    for r in runs:
+        print(f"{r['scan_id']:<16} {r['status']:<8} {r['mode']:<9} "
+              f"{r['total']:<9} {r['target']}")
+    return 0
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    settings = _settings_for(args)
+    md = RunStore(settings.runs_dir).load_report(args.scan_id)
+    if not md:
+        print(f"No report for '{args.scan_id}' in {settings.runs_dir}/", file=sys.stderr)
+        return 1
+    print(md)
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="openoffensive",
+        description="OpenOffensive — a multi-agent AI pentester that runs in a Kali container.")
+    p.add_argument("--version", action="version", version=f"openoffensive {__version__}")
+    sub = p.add_subparsers(dest="command", required=True)
+
+    sc = sub.add_parser("scan", help="run a scan (bundled demo, a git repo, a URL, or a dir)")
+    sc.add_argument("target", nargs="?",
+                    help="git repo URL, live URL/host, or local dir (default: bundled demo)")
+    sc.add_argument("--mode", choices=["auto", "llm", "scripted"], help="override run mode")
+    sc.add_argument("--model", help="override the model id (llm mode)")
+    sc.add_argument("--runs-dir", dest="runs_dir", help="where to write run artifacts")
+    sc.add_argument("--sandbox", choices=["auto", "docker", "local"],
+                    help="execution backend: auto (default), docker (require a container), "
+                         "or local (run tools on the host — no isolation)")
+    sc.add_argument("--authorized", action="store_true",
+                    help="confirm you are authorized to test a non-local URL target")
+    sc.set_defaults(func=cmd_scan)
+
+    dr = sub.add_parser("doctor", help="check Docker/LLM readiness; optionally build the image")
+    dr.add_argument("--build", action="store_true", help="build/pull the sandbox image now")
+    dr.add_argument("--no-api-check", action="store_true",
+                    help="skip the live model API test (no token spend)")
+    dr.set_defaults(func=cmd_doctor)
+
+    sv = sub.add_parser("serve", help="start the live dashboard")
+    sv.add_argument("--no-open", action="store_true", help="do not open a browser")
+    sv.set_defaults(func=cmd_serve)
+
+    ls = sub.add_parser("list", help="list persisted runs")
+    ls.add_argument("--runs-dir", dest="runs_dir")
+    ls.set_defaults(func=cmd_list)
+
+    rp = sub.add_parser("report", help="print a run's markdown report")
+    rp.add_argument("scan_id")
+    rp.add_argument("--runs-dir", dest="runs_dir")
+    rp.set_defaults(func=cmd_report)
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    # Make the live log's Unicode glyphs safe on a Windows console: prefer real
+    # UTF-8, and _safe_print() covers the rest if a captured stream can't be set.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001 — older/odd streams simply keep their encoding
+            pass
+    args = build_parser().parse_args(argv)
+    return int(args.func(args) or 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
