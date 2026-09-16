@@ -3,6 +3,8 @@
 const year = new Date().getFullYear();
 const github = "https://github.com/Ifthikar20/open-offensive";
 const tools = ["nmap", "sqlmap", "nuclei", "httpx", "ffuf", "gobuster", "wafw00f"];
+const installCmd =
+  "curl -sSL https://raw.githubusercontent.com/Ifthikar20/open-offensive/clean-main/install.sh | bash";
 ---
 
 <!doctype html>
@@ -150,10 +152,69 @@ const tools = ["nmap", "sqlmap", "nuclei", "httpx", "ffuf", "gobuster", "wafw00f
       footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
       footer a:hover { color: var(--accent-deep); }
 
+      /* ---- install (open source) ---- */
+      .install { text-align: center; padding: 60px 0 8px; }
+      .install .eyebrow2 {
+        font-weight: 700; font-size: 13px; letter-spacing: .05em;
+        text-transform: uppercase; color: var(--accent-deep);
+      }
+      .ititle {
+        margin: 12px 0 0; font-weight: 800; letter-spacing: -0.02em;
+        font-size: clamp(26px, 3.6vw, 42px); line-height: 1.08;
+      }
+      .ititle em { font-style: italic; color: var(--accent-deep); font-weight: 800; }
+      .term {
+        max-width: 760px; margin: 30px auto 0; text-align: left;
+        background: var(--dark); color: #f3ede1; border-radius: 18px; overflow: hidden;
+        box-shadow: 0 24px 60px -30px rgba(23, 21, 15, .6);
+        border: 1px solid rgba(255, 255, 255, .06);
+      }
+      .term-bar {
+        display: flex; align-items: center; gap: 8px;
+        padding: 12px 12px 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, .08);
+      }
+      .term-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; background: rgba(255,255,255,.18); }
+      .term-dot:nth-child(1) { background: #ef6a5a; }
+      .term-dot:nth-child(2) { background: #ecab52; }
+      .term-dot:nth-child(3) { background: #8fbf7f; }
+      .term-name {
+        margin-left: 6px; font-size: 12px; color: rgba(243, 237, 225, .5);
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      .copy {
+        margin-left: auto; display: inline-flex; align-items: center; gap: 9px;
+        background: transparent; border: 0; color: #f3ede1; cursor: pointer;
+        font: inherit; font-weight: 600; font-size: 13px;
+        padding: 3px 3px 3px 12px; border-radius: 12px;
+        transition: background .12s ease;
+      }
+      .copy:hover { background: rgba(255, 255, 255, .07); }
+      .copy .sq {
+        width: 28px; height: 28px; border-radius: 8px; background: var(--accent);
+        display: grid; place-items: center; flex: none; transition: background .12s ease;
+      }
+      .copy .sq svg { width: 15px; height: 15px; }
+      .copy.copied .sq { background: #8fbf7f; }
+      .term-body {
+        padding: 18px; overflow-x: auto;
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 14px; line-height: 1.9;
+      }
+      .cmd { white-space: pre; }
+      .cmd.dim { color: rgba(243, 237, 225, .42); }
+      .prompt { color: var(--accent); font-weight: 700; margin-right: 10px; user-select: none; }
+      .isub { margin: 22px auto 0; max-width: 640px; color: var(--muted); font-size: 14px; }
+      .isub a {
+        color: var(--accent-deep); text-decoration: underline; text-underline-offset: 3px;
+        margin-left: 6px; font-weight: 600;
+      }
+
       @media (max-width: 720px) {
         .navlinks { display: none; }
         .hero { padding: 64px 18px; min-height: 500px; border-radius: 22px; }
         .wrap { padding: 0 16px; }
+        .install { padding: 44px 0 8px; }
+        .term-body { font-size: 12.5px; padding: 16px; }
       }
     </style>
   </head>
@@ -172,6 +233,7 @@ const tools = ["nmap", "sqlmap", "nuclei", "httpx", "ffuf", "gobuster", "wafw00f
         </div>
         <div class="navlinks">
           <a href="#how">How it works</a><span class="dot">•</span>
+          <a href="#install">Install</a><span class="dot">•</span>
           <a href={github + "/tree/main/docs"}>Docs</a><span class="dot">•</span>
           <a href={github}>GitHub</a>
         </div>
@@ -209,6 +271,32 @@ const tools = ["nmap", "sqlmap", "nuclei", "httpx", "ffuf", "gobuster", "wafw00f
         </div>
       </section>
 
+      <!-- install (open source) -->
+      <section class="install" id="install">
+        <div class="eyebrow2">Open source · MIT</div>
+        <h2 class="ititle">Run it yourself, in <em>one line</em>.</h2>
+        <div class="term" role="group" aria-label="Install OpenOffensive">
+          <div class="term-bar">
+            <span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
+            <span class="term-name">bash</span>
+            <button class="copy" id="copyBtn" type="button" data-cmd={installCmd} aria-label="Copy install command">
+              <span class="copy-label">Copy</span>
+              <span class="sq">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#17150f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+              </span>
+            </button>
+          </div>
+          <div class="term-body">
+            <div class="cmd"><span class="prompt">$</span>{installCmd}</div>
+            <div class="cmd dim"><span class="prompt">$</span>openoffensive scan</div>
+          </div>
+        </div>
+        <div class="isub">
+          Python 3.9+ · Docker optional · scripted mode needs no API key.
+          <a href={github + "/tree/main/docs"}>Read the docs →</a>
+        </div>
+      </section>
+
       <!-- trust strip -->
       <section class="trust" id="how">
         <div class="eyebrow">Powered by the tools you already trust</div>
@@ -229,5 +317,48 @@ const tools = ["nmap", "sqlmap", "nuclei", "httpx", "ffuf", "gobuster", "wafw00f
         </div>
       </footer>
     </div>
+
+    <script is:inline>
+      (function () {
+        var btn = document.getElementById("copyBtn");
+        if (!btn) return;
+        var label = btn.querySelector(".copy-label");
+        var original = label ? label.textContent : "Copy";
+        function done() {
+          btn.classList.add("copied");
+          if (label) label.textContent = "Copied";
+          setTimeout(function () {
+            btn.classList.remove("copied");
+            if (label) label.textContent = original;
+          }, 1500);
+        }
+        function fallback(cmd) {
+          try {
+            var ta = document.createElement("textarea");
+            ta.value = cmd;
+            ta.setAttribute("readonly", "");
+            ta.style.position = "absolute";
+            ta.style.left = "-9999px";
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            document.body.removeChild(ta);
+          } catch (e) {}
+          done();
+        }
+        btn.addEventListener("click", function () {
+          var cmd = btn.getAttribute("data-cmd") || "";
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(cmd).then(done, function () { fallback(cmd); });
+            } else {
+              fallback(cmd);
+            }
+          } catch (e) {
+            fallback(cmd);
+          }
+        });
+      })();
+    </script>
   </body>
 </html>
