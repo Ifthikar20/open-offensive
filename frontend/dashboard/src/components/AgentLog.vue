@@ -73,16 +73,23 @@ watch(
 
 <style scoped>
 .agentlog {
-  --al-bg: #0f0f12;
-  --al-bar: #16161a;
-  --al-line: rgba(255, 255, 255, 0.07);
-  --al-ink: #d9d5ca;
-  --al-mut: #86847a;
+  /* Follows the app theme: a light console in light mode, black in dark. */
+  --al-bg: var(--card);
+  --al-bar: var(--muted);
+  --al-line: var(--border);
+  --al-ink: var(--foreground);
+  --al-mut: var(--muted-foreground);
+  --al-hover: color-mix(in srgb, var(--foreground) 5%, transparent);
+  --al-row: color-mix(in srgb, var(--foreground) 7%, transparent);
+  --al-blue: #2563eb;
   border: 1px solid var(--al-line);
   border-radius: 14px;
   overflow: hidden;
   background: var(--al-bg);
-  box-shadow: 0 20px 50px -30px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shadow-card, 0 1px 2px rgba(20, 20, 18, 0.05));
+}
+[data-theme='dark'] .agentlog {
+  --al-blue: #6ea8fe;
 }
 .al-bar {
   display: flex;
@@ -103,13 +110,13 @@ watch(
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #4ade80;
+  color: var(--color-success);
 }
 .al-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #4ade80;
+  background: var(--color-success);
   animation: alpulse 1s ease-in-out infinite;
 }
 @keyframes alpulse {
@@ -153,17 +160,17 @@ watch(
 }
 .al-row {
   height: 30px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+  border-bottom: 1px solid var(--al-row);
 }
 .al-row:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--al-hover);
 }
 .c-time {
   color: var(--al-mut);
   white-space: nowrap;
 }
 .c-agent {
-  color: #c7c3b6;
+  color: color-mix(in srgb, var(--al-ink) 78%, transparent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -182,15 +189,18 @@ watch(
   border-radius: 6px;
   text-transform: lowercase;
   letter-spacing: 0.02em;
+  color: var(--lvl);
+  background: color-mix(in srgb, var(--lvl) 16%, transparent);
 }
-.lv-system { color: #9a9788; background: rgba(154, 151, 136, 0.14); }
-.lv-graph { color: #a78bfa; background: rgba(167, 139, 250, 0.16); }
-.lv-phase { color: #f0a35a; background: rgba(240, 163, 90, 0.16); }
-.lv-think { color: #8a8778; background: rgba(138, 135, 120, 0.12); }
-.lv-tool { color: #6ea8fe; background: rgba(110, 168, 254, 0.16); }
-.lv-finding { color: #ffa657; background: rgba(255, 166, 87, 0.16); }
-.lv-report { color: #4ade80; background: rgba(74, 222, 128, 0.16); }
-.lv-error { color: #ff6b6b; background: rgba(255, 107, 107, 0.16); }
+/* Level colors come from the theme tokens, so they flip with light/dark. */
+.lv-system { --lvl: var(--muted-foreground); }
+.lv-think { --lvl: var(--muted-foreground); }
+.lv-graph { --lvl: var(--brand-accent); }
+.lv-phase { --lvl: var(--color-warning); }
+.lv-tool { --lvl: var(--al-blue); }
+.lv-finding { --lvl: var(--severity-high); }
+.lv-report { --lvl: var(--color-success); }
+.lv-error { --lvl: var(--color-danger); }
 .al-empty {
   padding: 28px 14px;
   text-align: center;
