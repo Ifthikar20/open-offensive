@@ -4,7 +4,9 @@ import { useRoute } from 'vue-router'
 import { ChevronLeft, ChevronDown, Loader2 } from '@lucide/vue'
 
 import { useScansStore } from '@/stores/scans'
+import scansApi from '@/api/scans'
 import StatusPill from '@/components/StatusPill.vue'
+import AgentLog from '@/components/AgentLog.vue'
 import { SeverityBadge } from '@/components/ui/severity-badge'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -19,6 +21,8 @@ const TERMINAL = new Set(['done', 'error'])
 const loading = ref(true)
 const open = ref({})
 const showReport = ref(false)
+const events = ref([])
+const lastSeq = ref(0)
 let timer = null
 
 const scan = computed(() => scans.detail)
@@ -39,11 +43,30 @@ async function refresh() {
   }
 }
 
+async function fetchEvents() {
+  try {
+    const { data } = await scansApi.events(route.params.id, lastSeq.value)
+    if (data.events && data.events.length) {
+      events.value = events.value.concat(data.events)
+      lastSeq.value = data.last_seq
+    }
+  } catch {
+    /* keep the events we already have on a transient error */
+  }
+}
+
 onMounted(async () => {
   await refresh()
-  timer = window.setInterval(() => {
-    if (running.value) refresh()
-  }, 2500)
+  await fetchEvents()
+  timer = window.setInterval(async () => {
+    if (running.value) {
+      await refresh()
+      await fetchEvents()
+    } else if (timer) {
+      window.clearInterval(timer)
+      timer = null
+    }
+  }, 1500)
 })
 onBeforeUnmount(() => timer && window.clearInterval(timer))
 </script>
@@ -96,6 +119,12 @@ onBeforeUnmount(() => timer && window.clearInterval(timer))
           <span class="text-[11px] uppercase tracking-wide text-muted-foreground">{{ sev }}</span>
         </Card>
       </div>
+
+      <!-- Live agent activity -->
+      <section class="space-y-2">
+        <h2 class="text-lg font-semibold tracking-tight">Activity</h2>
+        <AgentLog :events="events" :live="running" />
+      </section>
 
       <!-- Findings -->
       <section v-if="sortedFindings.length" class="space-y-2">

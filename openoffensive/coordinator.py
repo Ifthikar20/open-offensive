@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import queue
 import threading
-from typing import Any
+from typing import Any, Callable
 
 from .models import AgentState, Finding, LogEvent, now
 
@@ -37,6 +37,9 @@ class Coordinator:
         self.status = "idle"          # idle|running|done
         self.started_at: float | None = None
         self.finished_at: float | None = None
+        # Optional sink invoked with each event as it is emitted, so an
+        # out-of-process reader can tail a live event stream written to disk.
+        self.on_event: Callable[[LogEvent], None] | None = None
 
     # ---- pub/sub for the live log -------------------------------------------
     def subscribe(self) -> queue.Queue:
@@ -78,6 +81,11 @@ class Coordinator:
             )
             self.events.append(ev)
         self._broadcast(ev)
+        if self.on_event is not None:
+            try:
+                self.on_event(ev)
+            except Exception:
+                pass  # a logging sink must never break a scan
         return ev
 
     # ---- the agent graph ----------------------------------------------------

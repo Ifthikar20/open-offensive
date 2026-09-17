@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time
 import uuid
@@ -78,6 +79,25 @@ def _repo_url_and_name(target: str) -> tuple[str, str]:
     return t, (name or "repo")
 
 
+def _open_event_log(store: RunStore, scan_id: str):
+    """Open a per-scan events.jsonl for live appending. Best-effort: returns None
+    if the file can't be opened, so streaming never blocks a scan."""
+    try:
+        d = store.dir_for(scan_id)
+        d.mkdir(parents=True, exist_ok=True)
+        return open(d / "events.jsonl", "a", encoding="utf-8")
+    except Exception:
+        return None
+
+
+def _append_event(fh, ev) -> None:
+    try:
+        fh.write(json.dumps(ev.to_dict()) + "\n")
+        fh.flush()
+    except Exception:
+        pass
+
+
 def run_scan(coord: Coordinator, *, settings: Optional[Settings] = None,
              scan_id: Optional[str] = None, store: Optional[RunStore] = None,
              sandbox: Optional[Any] = None) -> ScanResult:
@@ -89,6 +109,12 @@ def run_scan(coord: Coordinator, *, settings: Optional[Settings] = None,
     settings = settings or load_settings()
     scan_id = scan_id or f"scan-{uuid.uuid4().hex[:8]}"
     store = store if store is not None else RunStore(settings.runs_dir)
+
+    # Stream events to disk as they're emitted so an out-of-process reader (the
+    # web backend) can tail the live log while the scan is still running.
+    _event_log = _open_event_log(store, scan_id)
+    if _event_log is not None:
+        coord.on_event = lambda ev: _append_event(_event_log, ev)
 
     created_sandbox = sandbox is None
     mode, note = resolve_mode(settings)
@@ -209,6 +235,14 @@ def run_scan(coord: Coordinator, *, settings: Optional[Settings] = None,
 
     coord.status = status
     coord.finished_at = time.time()
+
+    # Stop live-streaming before the authoritative artifacts are written.
+    coord.on_event = None
+    if _event_log is not None:
+        try:
+            _event_log.close()
+        except Exception:
+            pass
 
     try:
         store.save(coord, result)
