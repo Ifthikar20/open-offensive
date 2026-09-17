@@ -79,8 +79,8 @@ watch(
   --al-line: var(--border);
   --al-ink: var(--foreground);
   --al-mut: var(--muted-foreground);
-  --al-hover: color-mix(in srgb, var(--foreground) 5%, transparent);
-  --al-row: color-mix(in srgb, var(--foreground) 7%, transparent);
+  --al-hover: color-mix(in srgb, var(--foreground) 7%, transparent);
+  --al-row: color-mix(in srgb, var(--foreground) 4%, transparent);
   --al-blue: #2563eb;
   border: 1px solid var(--al-line);
   border-radius: 14px;
@@ -160,7 +160,9 @@ watch(
 }
 .al-row {
   height: 30px;
-  border-bottom: 1px solid var(--al-row);
+}
+.al-row:nth-child(even) {
+  background: var(--al-row);
 }
 .al-row:hover {
   background: var(--al-hover);
