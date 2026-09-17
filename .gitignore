@@ -13,3 +13,21 @@ dist/
 *.egg-info/
 .pytest_cache/
 .venv/
+
+# --- web platform (landing / dashboard / backend) ---
+node_modules/
+dist/
+.astro/
+frontend/**/node_modules/
+frontend/**/dist/
+# python / django
+.venv/
+venv/
+*.sqlite3
+db.sqlite3
+backend/.env
+staticfiles/
+# never commit real secrets
+.env
+.env.*
+!.env.example

@@ -1,0 +1,23 @@
+---
+import Site from "./Site.astro";
+import { bySlug } from "../posts.js";
+
+const { slug } = Astro.props;
+const post = bySlug(slug);
+---
+
+<Site title={`${post.title} — OpenOffensive`} description={post.excerpt}>
+  <article class="article">
+    <a class="back" href="/blog">← All posts</a>
+    <div class="article-head">
+      <span class="post-tag">{post.tag}</span>
+      <h1>{post.title}</h1>
+      <div class="article-meta">
+        <time datetime={post.dateISO}>{post.date}</time> · {post.readingTime} · OpenOffensive Team
+      </div>
+    </div>
+    <div class="article-body">
+      <slot />
+    </div>
+  </article>
+</Site>

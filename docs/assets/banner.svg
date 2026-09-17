@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="OpenOffensive — multi-agent AI pentester">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a0e17"/>
+      <stop offset="0.55" stop-color="#0e1626"/>
+      <stop offset="1" stop-color="#141d31"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff5f6d"/>
+      <stop offset="1" stop-color="#ffb03a"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff5f6d"/>
+      <stop offset="1" stop-color="#ffb03a"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="300" fill="url(#bg)"/>
+
+  <!-- faint grid -->
+  <g stroke="#1b2942" stroke-width="1" opacity="0.45">
+    <path d="M0 60 H1200 M0 120 H1200 M0 180 H1200 M0 240 H1200"/>
+    <path d="M300 0 V300 M480 0 V300 M660 0 V300 M840 0 V300 M1020 0 V300"/>
+  </g>
+
+  <!-- left accent edge -->
+  <rect x="0" y="0" width="8" height="300" fill="url(#edge)"/>
+
+  <!-- crosshair / target -->
+  <g transform="translate(96,150)" fill="none" stroke="url(#accent)" stroke-width="4" stroke-linecap="round">
+    <circle r="48" opacity="0.9"/>
+    <circle r="22" opacity="0.9"/>
+    <path d="M-70 0 h16 M54 0 h16 M0 -70 v16 M0 54 v16"/>
+    <circle r="4.5" fill="url(#accent)" stroke="none"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="188" y="152" font-family="'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="76" font-weight="800" letter-spacing="-1" fill="#eaf1fb">Open<tspan fill="url(#accent)">Offensive</tspan></text>
+
+  <!-- tagline -->
+  <text x="190" y="196" font-family="'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#9fb1cb">Multi-agent AI penetration testing — live, inside a container.</text>
+
+  <!-- tool line -->
+  <text x="190" y="242" font-family="ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace" font-size="17" fill="#5fd0a8"><tspan fill="#4a5f7f">$</tspan> nmap · sqlmap · nuclei · httpx · ffuf · gobuster · wafw00f</text>
+</svg>

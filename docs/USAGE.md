@@ -202,8 +202,26 @@ defaults run scripted mode against the bundled demo.
 | `OPENOFFENSIVE_MAX_TOKENS` | `4096` | Max tokens per model call (LLM mode). |
 | `OPENOFFENSIVE_MAX_STEPS` | `24` | Per-agent tool-call budget in LLM mode. |
 | `OPENOFFENSIVE_SANDBOX` | `auto` | Execution backend for tool calls: `auto` (Docker if a daemon is reachable, else local host execution), `docker` (require a Kali container), or `local` (run tools directly on the host — no container isolation, only host-installed tools). |
+| `OPENOFFENSIVE_DOCKER_AUTOSTART` | `1` | When Docker is wanted (`auto`/`docker`) but the daemon is down, try to start it (`service`/`systemctl`, or `dockerd` directly) before falling back. Needs root or passwordless sudo. Set `0` to disable. |
 | `OPENOFFENSIVE_SANDBOX_IMAGE` | `openoffensive-sandbox:kali` | The container image a scan runs in. A tag starting with `openoffensive-sandbox` is built from the bundled `Dockerfile`; any other tag is `docker pull`ed instead. |
 | `OPENOFFENSIVE_SANDBOX_NETWORK` | (empty) | Docker network for the scan container. Empty uses the default bridge; set it to attach the container to a specific network. |
+
+## Building the sandbox image (including locked-down networks)
+
+The default image builds from `openoffensive/sandbox/Dockerfile` (a Kali base). Where a
+network blocks Docker Hub and the distro apt mirrors, that base can't be pulled. For those
+environments there is a portable build that pulls its base from a reachable registry and
+installs tools from PyPI, git-over-HTTPS, and static GitHub Release binaries:
+
+```bash
+./openoffensive/sandbox/build-image.sh      # tags openoffensive-sandbox:kali
+```
+
+It auto-detects an egress proxy (`HTTPS_PROXY`) and its CA and, when present, builds with
+`--network host` so the build steps reach the allowed package sources. Once built, the
+engine finds the image and runs scans in it. The portable toolset covers sqlmap, wafw00f,
+wapiti, dirsearch, arjun, ffuf, gobuster, nuclei, and httpx; a few apt-native tools
+(nmap, nikto, whatweb) aren't included and need a static binary or a prebuilt image.
 
 ## Running without Docker (local backend)
 

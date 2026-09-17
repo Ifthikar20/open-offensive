@@ -1,0 +1,106 @@
+/* IMPORTANT: this file is NOT inside a cascade layer, so every rule here beats
+   Tailwind's `@layer utilities` regardless of order or specificity. Never
+   redefine a class Tailwind also generates (.flex, .flex-col, .w-full, ...):
+   the duplicate silently kills every responsive/state variant of it app-wide.
+   Only legacy-specific names belong here.
+
+   .text-sm / .text-xs below are such duplicates and are kept ONLY for the app's
+   compact density: they shrink Tailwind's 14px/12px to 12px/11px everywhere. */
+.text-muted {
+  color: var(--text-secondary);
+}
+.text-success {
+  color: var(--color-success);
+}
+.text-warning {
+  color: var(--color-warning);
+}
+.text-danger {
+  color: var(--color-danger);
+}
+.text-sm {
+  font-size: var(--font-sm);
+} /* 12px, overrides Tailwind's 14px */
+.text-xs {
+  font-size: var(--font-xs);
+} /* 11px, overrides Tailwind's 12px */
+
+/* Keyframes + entrance helpers */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.fade-in {
+  animation: fadeIn var(--transition-base);
+}
+.slide-up {
+  animation: slideUp var(--transition-base);
+}
+.stagger-enter > * {
+  animation: slideUp 400ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.stagger-enter > *:nth-child(1) {
+  animation-delay: 40ms;
+}
+.stagger-enter > *:nth-child(2) {
+  animation-delay: 80ms;
+}
+.stagger-enter > *:nth-child(3) {
+  animation-delay: 120ms;
+}
+.stagger-enter > *:nth-child(4) {
+  animation-delay: 160ms;
+}
+.stagger-enter > *:nth-child(5) {
+  animation-delay: 200ms;
+}
+.stagger-enter > *:nth-child(6) {
+  animation-delay: 240ms;
+}
+.stagger-enter > *:nth-child(7) {
+  animation-delay: 280ms;
+}
+.stagger-enter > *:nth-child(8) {
+  animation-delay: 320ms;
+}
+
+.card:active {
+  transform: scale(0.98);
+}

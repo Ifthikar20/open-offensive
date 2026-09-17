@@ -1,0 +1,169 @@
+@import 'tailwindcss';
+
+/* Dark mode follows the app's [data-theme="dark"] attribute, not a .dark class. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Tailwind v4 gives a bare `border` class currentColor. Point it at the hairline
+   token so `class="rounded-lg border"` is always a quiet divider. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--border);
+  }
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #1a1a18;
+  --card: #ffffff;
+  --card-foreground: #1a1a18;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a18;
+  --primary: #1e1e1e;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f2;
+  --secondary-foreground: #1e1e1e;
+  --muted: #f4f4f2;
+  --muted-foreground: #6b6b66;
+  --accent: #f2edfc;
+  --accent-foreground: #3d1f8f;
+  --destructive: #c2483d;
+  --destructive-foreground: #ffffff;
+  --border: rgba(20, 20, 18, 0.08);
+  --input: rgba(20, 20, 18, 0.14);
+  --ring: #7232e0;
+  --chart-1: #7232e0;
+  --chart-2: #1e1e1e;
+  --chart-3: #a5a5a0;
+  --chart-4: #3f8f5f;
+  --chart-5: #b07d28;
+  --radius: 0.625rem;
+  --sidebar: #f7f7f5;
+  --sidebar-foreground: #1a1a18;
+  --sidebar-primary: #1e1e1e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ecece9;
+  --sidebar-accent-foreground: #1a1a18;
+  --sidebar-border: rgba(20, 20, 18, 0.08);
+  --sidebar-ring: #7232e0;
+  /* Severity scale — single source for every severity badge/dot/tile.
+     Extended to OpenOffensive's five levels (Cansee ships three). */
+  --severity-critical: #c2483d;
+  --severity-high: #cf6b3f;
+  --severity-medium: #b07d28;
+  --severity-low: #5b7fb0;
+  --severity-info: #6b6b66;
+}
+
+[data-theme='dark'] {
+  /* Dark mode = black and white. Pure black surfaces, white ink, hairline white
+     borders; only tints are the brand accent + semantic status colours. Text
+     hierarchy is white vs. 70% white — never a mid grey. */
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #000000;
+  --card-foreground: #ffffff;
+  --popover: #0f0f0f;
+  --popover-foreground: #ffffff;
+  --primary: #ffffff;
+  --primary-foreground: #000000;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #ffffff;
+  --muted: #141414;
+  --muted-foreground: #b3b3b3;
+  --accent: #1f1f1f;
+  --accent-foreground: #ffffff;
+  --destructive: #ff5f5f;
+  --destructive-foreground: #000000;
+  --border: rgba(255, 255, 255, 0.14);
+  --input: rgba(255, 255, 255, 0.24);
+  --ring: #ffffff;
+  --chart-1: #a78bfa;
+  --chart-2: #ffffff;
+  --chart-3: #8a8a8a;
+  --chart-4: #4ade80;
+  --chart-5: #fbbf24;
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #1a1a1a;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.12);
+  --sidebar-ring: #ffffff;
+  --severity-critical: #ff6b6b;
+  --severity-high: #ffa657;
+  --severity-medium: #fbbf24;
+  --severity-low: #7aa2df;
+  --severity-info: #b3b3b3;
+}
+
+/* Map tokens onto Tailwind color utilities (bg-background, text-muted-foreground,
+   border-sidebar-border, text-severity-high, …). */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-severity-critical: var(--severity-critical);
+  --color-severity-high: var(--severity-high);
+  --color-severity-medium: var(--severity-medium);
+  --color-severity-low: var(--severity-low);
+  --color-severity-info: var(--severity-info);
+}
+
+/* Brand tokens + radius/shadow/spacing scale. Overrides Tailwind v4 defaults:
+   rounded-md is 12px here, rounded-xl is 24px. */
+@theme {
+  --color-brand-primary: #1e1e1e;
+  --color-brand-accent: #7232e0;
+  --color-brand-accent-hover: #5f24c4;
+  --color-brand-highlight: #cdb8f5;
+  --color-success: #3f8f5f;
+  --color-warning: #b07d28;
+  --color-danger: #c2483d;
+  --color-info: #7232e0;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 28px;
+  --shadow-card: 0 1px 2px rgba(20, 20, 18, 0.04);
+  --shadow-card-hover: 0 2px 8px rgba(20, 20, 18, 0.06);
+  --shadow-elevated: 0 12px 32px rgba(20, 20, 18, 0.1);
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --spacing-18: 4.5rem;
+  --spacing-88: 22rem;
+}

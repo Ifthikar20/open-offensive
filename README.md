@@ -1,156 +1,197 @@
-# OpenOffensive
+<div align="center">
 
-[openoffensive.ai](https://openoffensive.ai) — a **Docker-based, multi-agent AI pentester**
-with a live dashboard. Each scan spins up an isolated **Kali Linux container**, pulls the
-target's source into it, and turns a **root orchestrator** loose: it delegates to
-**specialist sub-agents** (Recon, Injection, Access) that each drive a tool-use loop,
-running `nmap` / `curl` / `sqlmap` / `grep` and friends **inside the container** via
-`docker exec`. Every finding is confirmed from real command output and carries a severity,
-a CVSS score, evidence, a proof-of-concept, and a fix — streamed to the browser live. Point
-it at a git repo, a live URL, or a local directory; with an `ANTHROPIC_API_KEY` a real model
-decides each command, otherwise a fixed in-container playbook runs the same tools.
+<img src="docs/assets/banner.svg" alt="OpenOffensive" width="820">
 
-## Requirements
+<p><strong>A Docker-based, multi-agent AI pentester with a live dashboard.</strong></p>
 
-- **`ANTHROPIC_API_KEY` — required for the default (LLM) mode.** Set the key and
-  `pip install 'openoffensive[llm]'`; the agents then reason with a real model and decide each
-  tool call. Without a key a scan fails with a clear error (or pass `--mode scripted` to run
-  the fixed demo playbook, which needs no key).
-- **Docker — recommended, not required.** By default each scan runs in a Kali container built
-  from `openoffensive-sandbox:kali` (the first build pulls a multi-GB base and is slow). Where a
-  Docker daemon is unavailable — a cloud/CI session, a locked-down network that can't pull the
-  image, or simply no daemon — set `OPENOFFENSIVE_SANDBOX=local` (or rely on the `auto` default)
-  to run the tools directly on the host instead. Local mode has **no container isolation** and
-  only the tools already installed on the host, so Docker stays the default wherever it works.
-- **Python 3.9+** to run the CLI and dashboard.
+<p>
+<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-f5c518.svg"></a>
+<img alt="Python 3.9+" src="https://img.shields.io/badge/Python-3.9%2B-3776AB.svg?logo=python&logoColor=white">
+<img alt="Sandbox: Docker or local" src="https://img.shields.io/badge/Sandbox-Docker%20or%20local-2496ED.svg?logo=docker&logoColor=white">
+<img alt="Tests: 129 passing" src="https://img.shields.io/badge/tests-129%20passing-3fb950.svg">
+<img alt="Output: SARIF 2.1.0" src="https://img.shields.io/badge/output-SARIF%202.1.0-8957e5.svg">
+</p>
 
-## Run it
+<sub>openoffensive.ai</sub>
+
+</div>
+
+---
+
+Each scan spins up an isolated Kali Linux container, pulls the target's source into it, and turns
+a **root orchestrator** loose: it delegates to specialist sub-agents — **Recon, Injection, Access** —
+that each drive a tool-use loop, running `nmap` / `curl` / `sqlmap` / `nuclei` and friends inside the
+container via `docker exec`. Every finding is confirmed from real command output and carries a
+severity, a CVSS score, evidence, a proof-of-concept, and a fix — streamed to the browser live.
+Point it at a git repo, a live URL, or a local directory.
+
+> [!IMPORTANT]
+> **A model key drives the agents.** With `ANTHROPIC_API_KEY` set (and `pip install 'openoffensive[llm]'`),
+> a real model decides each command. Without a key a scan fails with a clear error — or pass
+> `--mode scripted` to run a fixed in-container playbook of the same tools, no key required.
+
+## ✨ Highlights
+
+- **A sandbox per scan** — one throwaway container, created at the start of a run and `docker rm -f`'d at the end.
+- **Multi-agent by design** — a root that only orchestrates, plus Recon, Injection, and Access specialists running as real parallel threads against one shared container.
+- **Tools run inside the box** — the core tool is `run_command`, a `docker exec` into the sandbox; agents also `read_file`, `report_finding`, and `load_skill`. There is no host-side HTTP tool.
+- **Runs anywhere** — Docker where a daemon is available (it will even try to start one), or a host-execution fallback where Docker isn't.
+- **Validated findings** — nothing is reported unless it was proven from real output; each carries CVSS, evidence, a PoC, and a fix.
+- **Live dashboard** — agent graph, findings, and a Server-Sent-Events log with a mode badge and run history.
+- **Portable artifacts** — every run persists to `runs/<scan_id>/` as JSON, SARIF 2.1.0, Markdown, and a full event stream.
+- **CI-friendly** — exit codes: `0` clean, `1` error, `2` findings.
+
+## 🚀 Quickstart
+
+**Prerequisites:** Python 3.9+ · (optional) Docker for the sandboxed container · a model key for the
+AI agents ([Anthropic](https://console.anthropic.com/); scripted mode needs none).
+
+**Install** — one line puts the `openoffensive` CLI on your PATH (prefers `pipx`, falls back to `pip --user`):
 
 ```bash
-pip install -e .                                # puts `openoffensive` on your PATH
-openoffensive doctor --build                    # check Docker/LLM readiness, build the image
-openoffensive scan                              # scan the bundled demo app
-openoffensive scan https://github.com/org/repo  # clone a git repo into the container and scan it
-openoffensive serve                             # live dashboard (or ./run.sh)
+curl -sSL https://raw.githubusercontent.com/Ifthikar20/open-offensive/clean-main/install.sh | bash
 ```
 
-`scan` with no target starts a bundled, deliberately vulnerable demo app on the host, reachable
-by the sandbox (`host.docker.internal` for the Docker backend, `127.0.0.1` for the local
-backend), scans it, prints the live log, writes artifacts to `runs/`, and exits `2` (findings
-found). A non-local URL target requires `--authorized`. Full command and environment reference:
-[docs/USAGE.md](docs/USAGE.md).
+<sub>Rather read before you pipe? The script is [`install.sh`](install.sh). Or install the package
+directly: <code>pipx install "openoffensive[llm] @ git+https://github.com/Ifthikar20/open-offensive.git"</code>.
+Set <code>OPENOFFENSIVE_NO_LLM=1</code> for the zero-dependency core (scripted mode only).</sub>
 
-## Features
+**Configure** your AI provider (the agents need a key; scripted mode doesn't):
 
-- **A Docker sandbox per scan** — one Kali container, built from
-  [`openoffensive/sandbox/Dockerfile`](openoffensive/sandbox/Dockerfile) (nmap, sqlmap,
-  nikto, whatweb, dirb, gobuster, wafw00f, curl/wget, git, python3, jq, dnsutils, netcat),
-  created at the start of a run and `docker rm -f`'d at the end.
-- **Target source pulled into the container** — a git repo is `git clone --depth 1`'d into
-  `/workspace/<name>`, a local directory is `docker cp`'d in, and a live URL is probed over
-  the network (nothing cloned). `classify_target()` picks repo / dir / url.
-- **Tools run inside the container** — the core tool is `run_command`, which `docker exec`s a
-  shell command in the Kali box; agents also `read_file`, `report_finding`, `load_skill` /
-  `list_skills`, and `finish`. There is no host-side HTTP tool.
-- **Multi-agent by design** — a root that only orchestrates, plus Recon, Injection, and
-  Access specialists that run as real parallel threads against the one shared container.
-- **Two run modes, both in the container** — **llm** (a real model decides each
-  `run_command`) or **scripted** (a fixed playbook of real commands, no key). The mode
-  auto-resolves: llm when a key is present, else scripted.
-- **Live dashboard** — agent graph, findings, and a Server-Sent-Events live log, with a mode
-  badge and a run-history dropdown.
-- **Portable artifacts** — every run is persisted to `runs/<scan_id>/` as JSON, **SARIF
-  2.1.0**, Markdown, and a full event stream.
-- **Safe by design** — the agent runs arbitrary commands, but only inside an isolated,
-  throwaway container; the CLI refuses a non-local URL target without `--authorized`.
-- **CI-friendly** — `scan` exit codes: `0` clean, `1` error, `2` findings.
-
-## Architecture
-
-The runner preflights Docker, ensures the sandbox image, starts one keep-alive container,
-gets the target's source in, and runs the root agent; the specialists share that container
-and drive their tools through `docker exec`. Findings and every step flow through one
-**Coordinator** (agent graph + event bus + findings store), which the dashboard reads over
-SSE. When the run ends the container is removed and the findings become a report, SARIF, and
-a persisted record.
-
-```
-openoffensive scan <repo | url | dir>
-        │
-        ▼
-  runner.run_scan ──▶ docker_available? ──▶ ensure_image  (build/pull openoffensive-sandbox:kali)
-        │
-        ▼  docker run -d … tail -f /dev/null
-   ┌──────────────────────── Kali sandbox container (one per scan) ────────────────────────┐
-   │  /workspace/<target>  ◀── git clone --depth 1   │   docker cp   │   (url: nothing cloned) │
-   │                                                                                          │
-   │  Root Orchestrator ──spawn threads──▶  Recon · Injection · Access                        │
-   │                                              │                                           │
-   │                       run_command  ──▶  docker exec sh -lc  (nmap · curl · sqlmap · grep)│
-   └──────────────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-  Coordinator (events + findings) ──▶ report.md · findings.sarif · runs/<scan_id>/
-        │
-        ▼  docker rm -f   (container torn down)
+```bash
+export ANTHROPIC_API_KEY="your-api-key"
 ```
 
-OpenOffensive runs each scan in a real Docker sandbox with a Kali toolset, driven by a
-multi-agent coordinator with load-on-demand skills and validated CVSS findings. The full
-walkthrough, mermaid diagrams, and the two-mode model are in
-**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+**Run your first assessment:**
 
-## Documentation
-
-| Document | What it covers |
-| --- | --- |
-| [docs/README.md](docs/README.md) | Index of the documentation set. |
-| [docs/VISION.md](docs/VISION.md) | The problem, the goal, the design principles, non-goals, and the roadmap. |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Diagrams, a module-by-module walkthrough, the sandbox lifecycle, the two run modes, and the coordinator/event model. |
-| [docs/USAGE.md](docs/USAGE.md) | Requirements, install, every CLI subcommand and flag, all environment variables, the first-run image build, LLM mode, and the artifacts. |
-| [docs/TESTING.md](docs/TESTING.md) | Running the pytest suite without Docker (FakeSandbox + mocked `docker` CLI + mocked model), the Docker-gated integration test, and a real container scan. |
-| [docs/EXTENDING.md](docs/EXTENDING.md) | Adding a specialist, a tool, or a skill; swapping the LLM; extending the sandbox image. |
-| [docs/SECURITY.md](docs/SECURITY.md) | The isolation model: arbitrary commands inside a throwaway container, scope reliance, the `--authorized` gate, the demo target, and Docker daemon trust. |
-
-## Project layout
-
+```bash
+openoffensive scan                                     # bundled demo app
+openoffensive scan https://github.com/org/repo         # clone a git repo and scan it
+openoffensive scan https://your-app.com --authorized   # a live target you're allowed to test
+openoffensive serve                                    # live dashboard
 ```
+
+`scan` with no target starts a bundled, deliberately vulnerable demo app on the host, reachable by
+the sandbox (`host.docker.internal` for Docker, `127.0.0.1` for local), scans it, prints the live
+log, writes artifacts to `runs/`, and exits `2`. A non-local URL target requires `--authorized`.
+
+<details>
+<summary><b>Install from source</b> (for contributors)</summary>
+
+```bash
+git clone https://github.com/Ifthikar20/open-offensive.git
+cd open-offensive
+pip install -e '.[llm]'          # editable install with the LLM extra
+openoffensive doctor --build     # check readiness, build the sandbox image
+```
+</details>
+
+> [!TIP]
+> **No Docker daemon, or a locked-down network?** Set `OPENOFFENSIVE_SANDBOX=local` to run the tools
+> directly on the host (no container isolation), or build a portable image with
+> `./openoffensive/sandbox/build-image.sh`, which installs the toolset from PyPI, git, and static
+> release binaries where Docker Hub and apt are blocked. See [docs/USAGE.md](docs/USAGE.md).
+
+## 🧩 How it works
+
+```mermaid
+flowchart TD
+    A["openoffensive scan  ·  repo / url / dir"] --> B["runner.run_scan"]
+    B --> M{"backend"}
+    M -->|"docker"| D["ensure image, then docker run"]
+    M -->|"local"| L["host workspace (fallback)"]
+    D --> S["Kali sandbox container — one per scan"]
+    L --> S
+    S --> R["Root Orchestrator"]
+    R --> SP["Recon · Injection · Access specialists"]
+    SP --> T["run_command → docker exec: nmap · curl · sqlmap · nuclei"]
+    T --> C["Coordinator: agent graph + events + findings"]
+    C --> O["report.md · findings.sarif · runs/scan-id/"]
+
+    classDef sandbox fill:#0f2038,stroke:#3b82f6,color:#dbeafe;
+    classDef out fill:#2a1420,stroke:#ff5f6d,color:#ffe4e6;
+    class S,R,SP,T sandbox;
+    class O out;
+```
+
+The runner preflights the model, ensures the sandbox, gets the target's source in, and runs the root
+agent; the specialists share that container and drive their tools through `docker exec`. Findings and
+every step flow through one **Coordinator** (agent graph + event bus + findings store), which the
+dashboard reads over SSE. When the run ends the container is removed and the findings become a report,
+SARIF, and a persisted record. Full walkthrough: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## 🧰 The sandbox & toolset
+
+By default each scan runs in a Kali container built from
+[`openoffensive/sandbox/Dockerfile`](openoffensive/sandbox/Dockerfile) (nmap, sqlmap, nikto, whatweb,
+dirb, gobuster, wafw00f, curl/wget, git, python3, jq, dnsutils, netcat). The target's source is pulled
+in — a git repo is `git clone --depth 1`'d into `/workspace/<name>`, a local directory is `docker cp`'d
+in, a live URL is probed over the network — and every tool call is a `docker exec` into that box.
+
+For environments where Docker Hub and apt are unreachable, a **portable image**
+([`Dockerfile.toolbox`](openoffensive/sandbox/Dockerfile.toolbox) + `build-image.sh`) assembles an
+equivalent toolset (nmap, sqlmap, wafw00f, wapiti, dirsearch, arjun, ffuf, gobuster, nuclei, httpx)
+from PyPI, git, and static release binaries — building through an egress proxy when one is present.
+
+## 🖥️ Two run modes
+
+| Mode | What decides the next command | Key |
+|---|---|---|
+| **llm** | a real model, per step, in a tool-use loop | required |
+| **scripted** | a fixed playbook of real in-container commands | not needed |
+
+The mode auto-resolves: **llm** when a key is present, otherwise pass `--mode scripted`. Both run the
+same tools in the same sandbox.
+
+## 🛡️ Safety
+
+> [!WARNING]
+> **Authorized testing only.** The agent runs arbitrary commands — that is the point — but it does so
+> inside an isolated, single-use container, and it is told to touch only the in-scope target. By
+> default it tests just its own bundled, deliberately vulnerable demo app. The CLI refuses a non-local
+> URL target without `--authorized`. Never aim it at systems you do not own or lack explicit written
+> permission to test. Never deploy the demo target — it is vulnerable on purpose.
+
+See [docs/SECURITY.md](docs/SECURITY.md).
+
+## 📦 Project layout
+
+```text
 open-offensive/
 ├── run.sh                     # one-command dashboard launcher
 ├── Makefile                   # dev shortcuts: install, dev, test, scan, serve
-├── docs/                      # the documentation set (above)
+├── docs/                      # the documentation set (below)
 └── openoffensive/             # the engine
     ├── cli.py                 # openoffensive scan | doctor | serve | list | report
     ├── server.py              # dashboard HTTP server + SSE; boots the demo target
-    ├── runner.py              # preflight Docker → sandbox → target in → root agent → persist
+    ├── runner.py              # preflight → sandbox → target in → root agent → persist
     ├── coordinator.py         # agent graph + event bus + findings store
     ├── agents.py              # RootAgent + Recon / Injection / Access specialists
-    ├── tools.py               # the tool registry, executed inside the container (run_command …)
-    ├── skills.py              # on-demand knowledge packs
+    ├── tools.py               # the tool registry, executed inside the container
     ├── llm.py                 # optional model brain (manual tool-use loop)
     ├── reporting.py           # findings → Markdown + SARIF 2.1.0
-    ├── persistence.py         # runs/<scan_id>/ artifacts
-    ├── models.py              # LogEvent / AgentState / Finding / ScanResult
-    ├── config.py              # env-driven Settings
     ├── demo_target.py         # "Juice-Box" — intentionally vulnerable demo app
-    ├── sandbox/               # the Docker sandbox runtime
-    │   ├── docker.py          #   DockerSandbox — one Kali container per scan, driven via the `docker` CLI
-    │   ├── fake.py            #   FakeSandbox — in-memory stand-in for tests (no Docker)
-    │   └── Dockerfile         #   the Kali image (openoffensive-sandbox:kali)
+    ├── sandbox/               # the sandbox runtime
+    │   ├── docker.py          #   DockerSandbox — one container per scan, via the docker CLI
+    │   ├── local.py           #   LocalSandbox — host-execution fallback (no Docker)
+    │   ├── Dockerfile         #   the Kali image
+    │   ├── Dockerfile.toolbox #   portable image for locked-down networks
+    │   └── build-image.sh     #   proxy-aware image builder
     └── web/index.html         # the single-page live dashboard
 ```
 
-## Safety
+## 📚 Documentation
 
-OpenOffensive performs **authorized security testing only**. The agent is designed to run
-arbitrary commands — that is the point — but it does so **inside an isolated, single-use Kali
-container**, and it is told to touch only the in-scope target. By default it tests just its own
-bundled, deliberately vulnerable demo app, reached from the container over
-`host.docker.internal`. The CLI refuses a non-local URL target without `--authorized`. Do not
-aim it (or any pentesting tool) at systems you do not own or lack explicit, written permission
-to test. Never deploy the demo target — it is vulnerable on purpose and is bound so the
-container can reach it. See [docs/SECURITY.md](docs/SECURITY.md).
+| Document | What it covers |
+| --- | --- |
+| [docs/VISION.md](docs/VISION.md) | The problem, the goal, the design principles, non-goals, and the roadmap. |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Diagrams, a module-by-module walkthrough, the sandbox lifecycle, and the coordinator model. |
+| [docs/USAGE.md](docs/USAGE.md) | Requirements, install, every CLI flag, all environment variables, the image build, and the artifacts. |
+| [docs/TESTING.md](docs/TESTING.md) | Running the pytest suite without Docker, the Docker-gated integration test, and a real container scan. |
+| [docs/EXTENDING.md](docs/EXTENDING.md) | Adding a specialist, a tool, or a skill; swapping the model; extending the sandbox image. |
+| [docs/SECURITY.md](docs/SECURITY.md) | The isolation model, scope reliance, the `--authorized` gate, and the demo target. |
 
-## License
+## 📄 License
 
-Apache-2.0.
+Released under the [MIT License](LICENSE). The pentest tools bundled in the sandbox image keep their
+own upstream licenses; MIT covers OpenOffensive's own code.

@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 import types
 
-from conftest import SCANNED_TARGET, build_settings
+from conftest import SCANNED_TARGET, build_settings, demo_sandbox
 
 from openoffensive import Coordinator, run_scan
 from openoffensive.models import AgentState, Finding
@@ -133,6 +133,49 @@ def test_docker_backend_without_daemon_errors(tmp_path, monkeypatch):
     coord = Coordinator(SCANNED_TARGET)
     result = run_scan(coord, settings=settings, scan_id="scan-nd",
                       store=RunStore(str(tmp_path / "runs")))  # sandbox=None
+    assert result.status == "error"
+    assert any(ev.level == "error" and "Docker is required" in ev.message
+               for ev in coord.events)
+
+
+# ---------------------------------------------------------------------------
+# Docker daemon auto-start (blocker 1): try to start dockerd, else fall back
+# ---------------------------------------------------------------------------
+def test_docker_autostart_attempted_then_local_fallback(tmp_path, monkeypatch):
+    """auto mode: when the daemon is down it tries to start it, and if that fails
+    (or the image is unavailable) the scan still runs on the host."""
+    import openoffensive.runner as runner
+    calls = []
+    monkeypatch.setattr(runner, "docker_available", lambda: (False, "down"))
+    monkeypatch.setattr(runner, "try_start_docker_daemon",
+                        lambda **k: (calls.append(1), (False, "test: cannot start"))[1])
+    monkeypatch.setattr(runner, "resolve_backend", lambda s: "local")
+    monkeypatch.setattr(runner, "open_sandbox", lambda *a, **k: demo_sandbox())
+    settings = build_settings(tmp_path, llm_mode="scripted", sandbox_backend="auto",
+                              docker_autostart=True)
+    coord = Coordinator(SCANNED_TARGET)
+    result = run_scan(coord, settings=settings, scan_id="scan-as",
+                      store=RunStore(str(tmp_path / "runs")))
+    assert calls == [1]                                # the daemon start WAS attempted
+    assert result.status == "done"
+    assert len(result.findings) >= 1                   # fell back to local, scan ran
+    assert any("attempting to start" in ev.message for ev in coord.events)
+
+
+def test_docker_backend_autostart_fails_then_errors(tmp_path, monkeypatch):
+    """explicit docker mode: it tries to start the daemon, and errors clearly if
+    that fails (no silent local fallback for an explicit docker request)."""
+    import openoffensive.runner as runner
+    calls = []
+    monkeypatch.setattr(runner, "docker_available", lambda: (False, "down"))
+    monkeypatch.setattr(runner, "try_start_docker_daemon",
+                        lambda **k: (calls.append(1), (False, "test: no daemon"))[1])
+    settings = build_settings(tmp_path, llm_mode="scripted", sandbox_backend="docker",
+                              docker_autostart=True)
+    coord = Coordinator(SCANNED_TARGET)
+    result = run_scan(coord, settings=settings, scan_id="scan-de",
+                      store=RunStore(str(tmp_path / "runs")))
+    assert calls == [1]
     assert result.status == "error"
     assert any(ev.level == "error" and "Docker is required" in ev.message
                for ev in coord.events)
