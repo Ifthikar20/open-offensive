@@ -1,14 +1,12 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ChevronLeft, ChevronDown, Loader2 } from '@lucide/vue'
+import { ChevronLeft, Loader2 } from '@lucide/vue'
 
 import { useScansStore } from '@/stores/scans'
 import scansApi from '@/api/scans'
 import StatusPill from '@/components/StatusPill.vue'
 import AgentLog from '@/components/AgentLog.vue'
-import { SeverityBadge } from '@/components/ui/severity-badge'
-import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -19,7 +17,6 @@ const scans = useScansStore()
 const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info']
 const TERMINAL = new Set(['done', 'error'])
 const loading = ref(true)
-const open = ref({})
 const showReport = ref(false)
 const events = ref([])
 const lastSeq = ref(0)
@@ -110,14 +107,22 @@ onBeforeUnmount(() => timer && window.clearInterval(timer))
         <AlertDescription>Findings will appear here as they land.</AlertDescription>
       </Alert>
 
-      <!-- KPI tiles -->
-      <div class="grid grid-cols-2 gap-4 sm:grid-cols-5">
-        <Card v-for="sev in SEVERITIES" :key="sev" class="flex flex-col items-center gap-1 p-4">
-          <span class="text-2xl font-bold tabular-nums" :class="`text-severity-${sev}`">
-            {{ counts[sev] || 0 }}
-          </span>
-          <span class="text-[11px] uppercase tracking-wide text-muted-foreground">{{ sev }}</span>
-        </Card>
+      <!-- severity summary -->
+      <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
+        <span class="text-sm font-semibold">
+          {{ sortedFindings.length }} finding{{ sortedFindings.length === 1 ? '' : 's' }}
+        </span>
+        <span class="h-3.5 w-px bg-border" />
+        <span
+          v-for="sev in SEVERITIES"
+          :key="sev"
+          class="inline-flex items-center gap-1.5"
+          :class="(counts[sev] || 0) ? '' : 'opacity-40'"
+        >
+          <span class="size-2 rounded-full" :style="{ background: `var(--severity-${sev})` }" />
+          <span class="font-semibold tabular-nums">{{ counts[sev] || 0 }}</span>
+          <span class="text-muted-foreground">{{ sev }}</span>
+        </span>
       </div>
 
       <!-- Live agent activity -->
@@ -126,62 +131,62 @@ onBeforeUnmount(() => timer && window.clearInterval(timer))
         <AgentLog :events="events" :live="running" />
       </section>
 
-      <!-- Findings -->
-      <section v-if="sortedFindings.length" class="space-y-2">
+      <!-- Findings — pentest-report style -->
+      <section v-if="sortedFindings.length" class="space-y-3">
         <h2 class="text-lg font-semibold tracking-tight">
           Findings <span class="text-muted-foreground">({{ sortedFindings.length }})</span>
         </h2>
-        <Card
-          v-for="f in sortedFindings"
-          :key="f.id"
-          class="overflow-hidden border-l-4 p-0"
-          :style="{ borderLeftColor: `var(--severity-${f.severity})` }"
-        >
-          <button
-            class="flex w-full items-center gap-3 px-4 py-3 text-left"
-            @click="open[f.id] = !open[f.id]"
-          >
-            <SeverityBadge :severity="f.severity" />
-            <span class="min-w-0 flex-1 truncate font-medium">{{ f.title }}</span>
-            <span class="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-              <span v-if="f.cvss" class="rounded-full border border-border px-2 py-0.5">
-                CVSS {{ Number(f.cvss).toFixed(1) }}
+        <div class="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+          <article v-for="f in sortedFindings" :key="f.id" class="px-5 py-5">
+            <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h3 class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 text-[15px] font-semibold">
+                <span
+                  class="text-[11px] font-bold uppercase tracking-wide"
+                  :class="`text-severity-${f.severity}`"
+                >
+                  {{ f.severity }}<template v-if="f.cvss"> · CVSS {{ Number(f.cvss).toFixed(1) }}</template>
+                </span>
+                <span>{{ f.title }}</span>
+              </h3>
+              <code class="shrink-0 text-xs text-muted-foreground">
+                {{ f.id }}<template v-if="f.cwe"> · {{ f.cwe }}</template>
+              </code>
+            </div>
+
+            <div
+              v-if="f.endpoint || f.target || f.agent"
+              class="mt-2 flex flex-wrap gap-x-6 gap-y-1 font-mono text-xs text-muted-foreground"
+            >
+              <span v-if="f.endpoint || f.target">
+                <span class="opacity-60">endpoint</span> {{ f.endpoint || f.target }}
               </span>
-              <span v-if="f.cwe" class="rounded-full border border-border px-2 py-0.5">{{ f.cwe }}</span>
-              <span v-if="f.agent" class="rounded-full border border-border px-2 py-0.5">{{ f.agent }}</span>
-            </span>
-            <ChevronDown
-              class="size-4 shrink-0 text-muted-foreground transition-transform"
-              :class="open[f.id] && 'rotate-180'"
-            />
-          </button>
-          <div v-if="open[f.id]" class="grid gap-3 border-t border-border px-4 py-4 text-sm">
-            <div v-if="f.endpoint || f.target" class="grid gap-1">
-              <span class="text-[11px] uppercase tracking-wide text-muted-foreground">Location</span>
-              <code class="text-xs">{{ f.endpoint || f.target }}</code>
+              <span v-if="f.agent"><span class="opacity-60">found by</span> {{ f.agent }}</span>
             </div>
-            <div v-if="f.evidence" class="grid gap-1">
-              <span class="text-[11px] uppercase tracking-wide text-muted-foreground">Evidence</span>
-              <span>{{ f.evidence }}</span>
+
+            <div class="mt-4 grid gap-3.5 text-sm">
+              <div v-if="f.evidence" class="grid gap-1">
+                <span class="text-[11px] uppercase tracking-wide text-muted-foreground">Evidence</span>
+                <p class="leading-relaxed">{{ f.evidence }}</p>
+              </div>
+              <div v-if="f.command" class="grid gap-1">
+                <span class="text-[11px] uppercase tracking-wide text-muted-foreground">Command</span>
+                <pre class="overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs leading-relaxed">{{ f.command }}</pre>
+              </div>
+              <div v-if="f.output" class="grid gap-1">
+                <span class="text-[11px] uppercase tracking-wide text-muted-foreground">Output</span>
+                <pre class="max-h-56 overflow-auto rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs leading-relaxed">{{ f.output }}</pre>
+              </div>
+              <div v-if="f.poc" class="grid gap-1">
+                <span class="text-[11px] uppercase tracking-wide text-muted-foreground">Proof of concept</span>
+                <pre class="overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs leading-relaxed">{{ f.poc }}</pre>
+              </div>
+              <div v-if="f.remediation" class="grid gap-1">
+                <span class="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--color-success)]">Fix</span>
+                <p class="leading-relaxed">{{ f.remediation }}</p>
+              </div>
             </div>
-            <div v-if="f.command" class="grid gap-1">
-              <span class="text-[11px] uppercase tracking-wide text-muted-foreground">Command</span>
-              <pre class="overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 text-xs">{{ f.command }}</pre>
-            </div>
-            <div v-if="f.output" class="grid gap-1">
-              <span class="text-[11px] uppercase tracking-wide text-muted-foreground">Output</span>
-              <pre class="overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 text-xs">{{ f.output }}</pre>
-            </div>
-            <div v-if="f.poc" class="grid gap-1">
-              <span class="text-[11px] uppercase tracking-wide text-muted-foreground">PoC</span>
-              <pre class="overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 text-xs">{{ f.poc }}</pre>
-            </div>
-            <div v-if="f.remediation" class="grid gap-1">
-              <span class="text-[11px] uppercase tracking-wide text-muted-foreground">Remediation</span>
-              <span>{{ f.remediation }}</span>
-            </div>
-          </div>
-        </Card>
+          </article>
+        </div>
       </section>
 
       <p v-else-if="!running" class="text-sm text-muted-foreground">
