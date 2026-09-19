@@ -49,28 +49,27 @@ These are the invariants the code is built around. Each maps to a concrete mecha
 
 OpenOffensive is deliberately *not* trying to be:
 
-- **A turnkey scanner for production targets.** It ships pointed at a bundled,
-  intentionally vulnerable demo app on localhost. Pointing it elsewhere is a
-  deliberate, authorized act (see [SECURITY.md](SECURITY.md)).
+- **A turnkey scanner for production targets.** Every scan is aimed at an explicit
+  target you name; pointing it at a live system is a deliberate, authorized act
+  (see [SECURITY.md](SECURITY.md)).
 - **An exploitation framework.** Agents send benign, confirmatory probes — a single
   quote, a marked script string, sequential IDs. They do not weaponize, pivot, or
   persist.
 - **A replacement for a human pentester.** It is an assistant that automates the
   repeatable parts of an engagement and produces auditable evidence, not a substitute
   for expert judgment on a high-stakes system.
-- **A large framework.** The Python package pulls in nothing for scripted mode and stays
-  on the standard library; the one heavyweight dependency is Docker, which every scan runs
-  in — and it earns its place by buying a real toolset and real isolation. That constraint
-  keeps the whole thing readable.
+- **A large framework.** The Python package core stays on the standard library — the model
+  SDK is a lazily imported `[llm]` extra — and the one heavyweight runtime dependency is Docker,
+  which every scan runs in. Docker earns its place by buying a real toolset and real isolation.
+  That constraint keeps the whole thing readable.
 
 ## Maturity — honest about POC → product
 
 The current build is a working proof-of-concept with a real spine: a real Docker sandbox
 in which the agents run a real Kali toolset, the target's source cloned into the
 container, a real coordinator and event bus, real persisted artifacts (JSON, SARIF,
-Markdown), and a real optional model brain. What is *small* is the surface area — three
-specialists, a handful of skills, one bundled target, and a scripted methodology that is
-intentionally fixed and auditable rather than open-ended.
+Markdown), and a real model brain driving every agent. What is *small* is the surface
+area — three specialists and a handful of skills — not the spine.
 
 The architecture was built so that growing the surface does not mean rewriting the
 core: adding a specialist, a tool, a skill, or swapping in model-driven planning are

@@ -31,10 +31,11 @@ import BlogPost from "../../layouts/BlogPost.astro";
   <h2>Try it in one line</h2>
   <p>Installing the CLI puts <code>openoffensive</code> on your PATH:</p>
   <pre><code>curl -sSL https://raw.githubusercontent.com/Ifthikar20/open-offensive/clean-main/install.sh | bash
-openoffensive scan</code></pre>
+openoffensive scan https://example.com</code></pre>
   <p>
-    With an LLM API key set, real model-driven agents decide each command. Without one, scripted mode
-    runs a deterministic set of checks with zero dependencies — handy for a quick look or for CI.
+    A real model drives the agents: with an Anthropic API key set, they decide each command, run it in
+    the sandbox, and confirm the finding from real output — no canned checks. A scan needs that key;
+    without a reachable model it stops at preflight instead of guessing.
   </p>
 
   <h2>Two ways to run</h2>

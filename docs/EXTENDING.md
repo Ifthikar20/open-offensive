@@ -7,28 +7,17 @@ keep the isolation model intact ([SECURITY.md](SECURITY.md)).
 
 ## Add a new specialist agent
 
-A specialist is a `BaseAgent` subclass with a `role`, a `focus`, and a `scripted()` methodology
-that drives real commands in the container through `self.ctx.run(...)`. Add it to `agents.py`.
+A specialist is a `BaseAgent` subclass with a `role` (it colors the agent graph) and a `focus` —
+a plain-English mandate the model is handed as its task. It carries no methodology code: a real
+model drives it through the shared tool-use loop, so all you write is the mandate. Add it to
+`agents.py`.
 
 ```python
 class SsrfAgent(BaseAgent):
     role = "ssrf"
     focus = ("Test for server-side request forgery: find parameters that fetch a URL "
-             "and check whether they can be pointed at internal/link-local addresses.")
-
-    def scripted(self) -> None:
-        self.ctx.phase("SSRF testing — URL-fetching parameters")
-        # run a real command INSIDE the container; ctx.run returns an ExecResult
-        r = self.ctx.run(f"curl -s '{self.target}/fetch?url=http://169.254.169.254/'")
-        if r.ok and "instance-id" in r.stdout:
-            self._file(
-                title="Server-side request forgery (SSRF)", severity="high",
-                endpoint="/fetch",
-                evidence="The url parameter fetched an internal metadata endpoint.",
-                remediation="Allowlist destination hosts; block link-local ranges.",
-                cwe="CWE-918",
-                poc='curl "$TARGET/fetch?url=http://169.254.169.254/"',
-            )
+             "and check whether they can be pointed at internal/link-local addresses "
+             "(e.g. 169.254.169.254). Confirm from the real response before reporting.")
 ```
 
 Then register it in the `SPECIALISTS` list — name, class, and the skills it advertises in the
@@ -44,29 +33,16 @@ SPECIALISTS = [
 ```
 
 That is all the wiring: `RootAgent` spawns every entry in `SPECIALISTS` as its own thread,
-sharing the one container, and waits on it. The pieces available inside `scripted()`:
+sharing the one container, and waits on it. `BaseAgent.work()` hands the model your `focus` as
+its task plus the shared tool set, and the model plans the work itself — issuing `run_command`s
+in the container, reading the real output, and filing findings with `report_finding`, one tool
+call per step until it calls `finish`. You write no methodology and no separate model path.
 
-| Call | Effect |
-| --- | --- |
-| `self.ctx.phase(msg)` / `self.ctx.think(msg)` | Emit a `phase` / `think` event to the live log. |
-| `self.ctx.run(command, timeout=180)` | Run a shell command in the container (`docker exec`); logs it and returns an `ExecResult` with `.stdout`, `.stderr`, `.exit_code`, `.ok`, `.timed_out`, and `.combined()`. |
-| `self._file(title=…, severity=…, endpoint=…, evidence=…, remediation=…, cwe="", poc="")` | File a validated finding (a thin wrapper over `self.ctx.report`). |
-| `self.workspace_path` | Path to the target's source inside the container (`/workspace/<name>`) when a repo or dir was cloned/copied in, or `None` for a black-box URL target. Use it to `grep`/`read` the source. |
-
-A source-review specialist keys off `self.workspace_path`:
-
-```python
-if self.workspace_path:
-    hits = self.ctx.run(f"grep -rEn 'password|api_key' {self.workspace_path} | head -20")
-    if hits.stdout.strip():
-        self._file(title="Secrets in source", severity="high", endpoint=self.workspace_path,
-                   evidence="grep found credential-like strings in the source.",
-                   remediation="Remove secrets from source; rotate them.", cwe="CWE-798")
-```
-
-**LLM mode comes for free.** `BaseAgent.work()` dispatches by mode: in scripted mode it calls
-your `scripted()`; in LLM mode it hands the model your `focus` as the task and the shared tool
-set, and the model issues `run_command`s itself. You do not write a separate LLM path.
+**Source-review focus.** When a repo or dir was cloned/copied in, its source lives at
+`/workspace/<name>` in the container and the model is told the path in its prompt. Point a
+specialist's `focus` at it — e.g. "grep the source under `/workspace` for hardcoded secrets and
+confirm any hit" — and the model uses `run_command` / `read_file` to inspect it. For a black-box
+URL target there is no source, so the model probes over the network instead.
 
 **Optional UI polish.** The dashboard colors agents by `role` (`web/index.html`, `AGENT_COLORS`
 plus the `--a-*` CSS variables). A new role renders in a neutral color until you add an entry
@@ -98,15 +74,13 @@ REGISTRY["nmap_quick"] = Tool(
 )
 ```
 
-- **Scripted agents** can invoke any registered tool by name with
-  `execute(self.ctx, "nmap_quick", {})`, or just call `self.ctx.run(...)` directly.
-- **LLM agents** are only offered the tools named in `agents._TOOLS`. Add your tool's name there
-  for the model to be able to call it:
+The model can only call a tool that is **offered** to it — the names in `agents._TOOLS`. Add your
+tool's name there so the model can call it:
 
-  ```python
-  _TOOLS = ["run_command", "read_file", "load_skill", "list_skills",
-            "report_finding", "nmap_quick", "finish"]
-  ```
+```python
+_TOOLS = ["run_command", "read_file", "load_skill", "list_skills",
+          "report_finding", "nmap_quick", "finish"]
+```
 
 Every tool inherits the same properties automatically: it runs **inside the isolated container**
 (nothing executes on the host), and all calls are logged as `tool` events. If your tool needs a
@@ -125,8 +99,8 @@ CATALOG["ssrf"] = (
 )
 ```
 
-It is immediately visible via `list_skills` and loadable via `load_skill("ssrf")` — in both
-scripted and LLM mode. Keep playbooks short and about *method*, not a specific target.
+It is immediately visible via `list_skills` and loadable via `load_skill("ssrf")`. Keep
+playbooks short and about *method*, not a specific target.
 
 ## Extend the sandbox image
 
@@ -181,52 +155,26 @@ back as `tool_result` blocks, and stops when the model calls `finish` (or the st
 reached). To evolve it — for example to enable adaptive thinking (`thinking={"type": "adaptive"}`)
 or set an effort level via `output_config` — add those parameters to the `messages.create` call.
 The one invariant to preserve: **keep every action flowing through the shared tool registry**, so
-container execution, logging, and the findings store work identically to scripted mode. The SDK
-is imported lazily, so the package still installs with no dependencies (LLM mode adds `anthropic`
-via the `[llm]` extra).
+container execution, logging, and the findings store keep working unchanged. The SDK is imported
+lazily, so the package core still installs with no dependencies (the `[llm]` extra adds
+`anthropic`, which a scan requires).
 
 **A different provider.** Replace the client construction and the `messages.create` call with the
 other provider's SDK, keeping the same contract: emit `think` for reasoning text, call
 `execute(ctx, name, args)` for each tool call, feed results back, and end when `ctx.finished` is
-set. `llm_available()` gates whether LLM mode can run — update its SDK import check to match.
-
-## Add endpoints and vulnerabilities to the demo target
-
-The demo target is "Juice-Box" in `demo_target.py`. Requests are dispatched in `_Handler.do_GET`
-by path; each branch returns `self._send(code, body, ctype)`. To add a practice vulnerability,
-add a branch and mark it with a `# VULN:` comment so it stays obviously intentional:
-
-```python
-if path == "/fetch":
-    url = params.get("url", "")
-    # VULN (demo): fetches an attacker-controlled URL with no allowlist (SSRF).
-    if url.startswith("http://169.254.169.254"):
-        return self._send(200, json.dumps({"instance-id": "i-demo", "role": "admin"}),
-                          "application/json")
-    return self._send(200, json.dumps({"fetched": url}), "application/json")
-```
-
-Rules for the demo target:
-
-- **It is a throwaway practice target — never deploy it.** It binds to `127.0.0.1` by default,
-  but the `scan` / `serve` paths bind it to `0.0.0.0` so the scan container can reach it via
-  `host.docker.internal`. It is vulnerable on purpose; run it only on a machine you control. See
-  [SECURITY.md](SECURITY.md).
-- Add the new endpoint to the home page listing if you want it discoverable by recon.
-- Then close the loop: add a specialist or check that finds it, a skill if it needs one, an image
-  tool if the check needs one, and tests on both the target and the scan (see
-  [TESTING.md](TESTING.md#adding-a-test-for-a-new-vuln-or-agent)).
+set. `llm_available()` gates whether a real model call can be made — update its SDK import check
+to match.
 
 ## A complete example, end to end
 
 Adding SSRF coverage touches these files, each in the way shown above:
 
 1. `skills.py` — add the `ssrf` playbook to `CATALOG`.
-2. `demo_target.py` — add the vulnerable `/fetch` endpoint.
-3. `agents.py` — add `SsrfAgent` and register it in `SPECIALISTS`.
-4. `sandbox/Dockerfile` — only if the check needs a tool not already in the image.
-5. `tests/` — pin the target behavior, and assert the scan reports the finding using a
-   `FakeSandbox` programmed with the command output.
+2. `agents.py` — add `SsrfAgent` and register it in `SPECIALISTS`.
+3. `sandbox/Dockerfile` — only if the check needs a tool not already in the image.
+4. `tests/` — assert the scan reports the finding by driving a fake model client (which issues the
+   tool calls) against a `FakeSandbox` programmed with the command output (see
+   [TESTING.md](TESTING.md#adding-a-test-for-a-new-specialist)).
 
 No changes to the coordinator, runner, persistence, reporting, or server are needed — the new
 specialist, skill, and finding flow through the existing machinery.

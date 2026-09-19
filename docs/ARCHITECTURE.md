@@ -17,7 +17,7 @@ Markdown report, a SARIF file, and a persisted record.
 
 ```mermaid
 flowchart TD
-    ENTRY["CLI: openoffensive scan<br/>or Dashboard: POST /api/scan"] --> RUN["runner.run_scan()<br/>resolve mode"]
+    ENTRY["CLI: openoffensive scan<br/>or Dashboard: POST /api/scan"] --> RUN["runner.run_scan()<br/>preflight model"]
     RUN --> PRE{"docker_available()?"}
     PRE -->|no| FAIL["SandboxError — Docker is required<br/>(see openoffensive doctor)"]
     PRE -->|yes| IMG["sandbox.ensure_image()<br/>build the bundled Dockerfile, or pull an override"]
@@ -69,7 +69,7 @@ flowchart TD
 The root spawns each specialist as its own daemon **thread**, waits on all of them
 (`wait_for_agents`), then aggregates. Because they are real threads sharing **one container**
 and one coordinator, their tool calls interleave against the same box — the live log is a
-faithful trace of concurrent work, not a scripted animation.
+faithful trace of concurrent work, not a canned animation.
 
 ## The request and data flow across components
 
@@ -115,20 +115,19 @@ Every module maps to one responsibility.
 | --- | --- |
 | `openoffensive/__init__.py` | Package exports (`Coordinator`, `Finding`, `run_scan`, `Settings`, …) and `__version__`. |
 | `openoffensive/__main__.py` | Makes `python -m openoffensive …` run the CLI. |
-| `config.py` | `Settings` (a frozen dataclass) and `load_settings()`, resolved entirely from environment variables. Includes the sandbox image/network and `Settings.llm_enabled`. |
+| `config.py` | `Settings` (a frozen dataclass) and `load_settings()`, resolved entirely from environment variables. Includes the sandbox image/network and `Settings.api_key_present`. |
 | `models.py` | The shared records: `LogEvent`, `AgentState`, `Finding`, `ScanConfig`, `ScanResult`, plus the `SEVERITY_CVSS` map and event `LEVELS`. |
 | `coordinator.py` | The `Coordinator` — the single owner of run state: event log, agent graph, findings store, and the pub/sub queues that feed live subscribers. Thread-safe. |
 | `sandbox/` | The Docker sandbox runtime — see the table below. |
-| `tools.py` | The tool layer: `ToolContext` (the per-agent handle onto the shared sandbox and in-scope target), the `Tool` dataclass, the `REGISTRY`, and `execute()`. One registry, shared by both run modes. |
+| `tools.py` | The tool layer: `ToolContext` (the per-agent handle onto the shared sandbox and in-scope target), the `Tool` dataclass, the `REGISTRY`, and `execute()`. One registry, used by every agent. |
 | `skills.py` | The `CATALOG` of skill playbooks and `load()` / `describe_catalog()` — pentesting knowledge as data. |
-| `llm.py` | The optional model brain: `run_agent_llm()` runs one agent under model control in a manual tool-use loop; `llm_available()` reports whether a real call can be made. |
+| `llm.py` | The model brain (the `anthropic` SDK is imported lazily): `run_agent_llm()` runs one agent under model control in a manual tool-use loop; `preflight_model()` confirms the model is reachable; `llm_available()` reports whether a real call can be made. |
 | `agents.py` | `BaseAgent`, the three specialists (`ReconAgent`, `InjectionAgent`, `AccessAgent`), the `SPECIALISTS` registry, and `RootAgent`. |
 | `reporting.py` | Turns the findings store into deliverables: `build_markdown()`, `build_sarif()`, `summary()`, and `to_result()`. |
 | `persistence.py` | `RunStore` — writes each run to `runs/<scan_id>/` and reads runs, events, and reports back for history. |
-| `runner.py` | `resolve_mode()`, `classify_target()`, and `run_scan()` — top-level orchestration: pick the mode, preflight Docker, open/start the sandbox, get the target in, run the root agent, tear down, persist. |
+| `runner.py` | `classify_target()` and `run_scan()` — top-level orchestration: preflight the model, preflight Docker, open/start the sandbox, get the target in, run the root agent, tear down, persist. |
 | `cli.py` | The `openoffensive` command: `scan`, `doctor`, `serve`, `list`, `report`, with CI-friendly exit codes. |
-| `server.py` | The dashboard HTTP server: serves the single-page UI, streams the live log over SSE, exposes a small REST API, and boots the demo target on `0.0.0.0` (so the scan container can reach it). Pure standard library. |
-| `demo_target.py` | "Juice-Box", the bundled, intentionally vulnerable demo app the agents test. |
+| `server.py` | The dashboard HTTP server: serves the single-page UI, streams the live log over SSE, exposes a small REST API, and scans the target it was launched with. Pure standard library. |
 | `web/index.html` | The single-page dashboard: agent graph, findings, live log, mode badge, run-history dropdown, and the report modal. |
 
 ### The sandbox package
@@ -143,7 +142,7 @@ Every module maps to one responsibility.
 | `sandbox/Dockerfile` | The image `openoffensive-sandbox:kali`, built from `kalilinux/kali-rolling` with a focused toolset: `nmap`, `sqlmap`, `nikto`, `whatweb`, `dirb`, `gobuster`, `wafw00f`, `curl`, `wget`, `git`, `python3`, `jq`, `dnsutils`, `netcat`. |
 
 The container is started with `--add-host host.docker.internal:host-gateway` (so it can reach
-a service on the host, such as the bundled demo) and `--cap-add NET_ADMIN --cap-add NET_RAW`
+a service on the host, such as a local target on `127.0.0.1`) and `--cap-add NET_ADMIN --cap-add NET_RAW`
 (so tools like `nmap` work). An `ExecResult` carries `stdout`, `stderr`, `exit_code`, and a
 `timed_out` flag; `.combined()` is the trimmed stdout+stderr the agent sees back from a call.
 
@@ -167,16 +166,14 @@ Every agent interacts with the container and with each other **only** by emittin
 trustworthy trace: there is no side channel. The coordinator takes a lock on every mutation
 because agents run on their own threads while the HTTP server reads snapshots on request
 threads. A small `bill()` meter accrues "turns" and "cost" so the UI can show the budget idea
-a real engine relies on; in scripted mode this is a nominal per-command charge, and in LLM
-mode it is computed from real token usage.
+a real engine relies on; it is computed from the model's real token usage each step.
 
 ### The tool layer
 
-A tool is a **name + JSON schema + handler**. The same `REGISTRY` backs both run modes: the
-scripted specialists call the tools in a fixed order, and the LLM loop calls them by name with
-the model's arguments. Every tool receives a `ToolContext`, which holds the shared
-**sandbox** and the in-scope **target**; `ctx.run(command)` calls `sandbox.exec()` and logs
-the command and its result as a `tool` event.
+A tool is a **name + JSON schema + handler**. The same `REGISTRY` backs every agent: the
+model's tool-use loop calls the tools by name with the model's arguments. Every tool receives a
+`ToolContext`, which holds the shared **sandbox** and the in-scope **target**; `ctx.run(command)`
+calls `sandbox.exec()` and logs the command and its result as a `tool` event.
 
 | Tool | Purpose | Required arguments |
 | --- | --- | --- |
@@ -229,62 +226,46 @@ renders the store as:
 The dashboard's history dropdown and the `openoffensive list` / `report` commands read
 straight from this directory, so results survive the process.
 
-## The two run modes
+## The model-driven agent loop
 
-Both modes run **inside the same container** and use **the same tools** — the difference is
-only *who decides the next command*. The mode is resolved once per scan by
-`runner.resolve_mode(settings)`, which reads `Settings.llm_enabled` (derived from
-`OPENOFFENSIVE_LLM_MODE` — `auto`, `llm`, or `scripted` — and whether `ANTHROPIC_API_KEY` is
-present):
+Every specialist is driven by a **real model** (Anthropic Claude) — there is no scripted or
+canned mode. A scan is always mode `llm`; `runner.run_scan()` **preflights the model** once,
+before building the container, via `llm.preflight_model(settings)`. If the model can't be reached
+(a missing `ANTHROPIC_API_KEY` or the `anthropic` SDK, an SSL/cert problem, an auth rejection, or
+a bad model id), the scan stops with a clear error and exit `1` rather than producing empty or
+demo output.
 
-```mermaid
-flowchart TD
-    START["resolve_mode(settings)"] --> ENABLED{"llm_enabled?<br/>(mode=llm, or mode=auto with a key)"}
-    ENABLED -->|no| SCRIPTED["scripted"]
-    ENABLED -->|yes| AVAIL{"llm_available?<br/>key present AND anthropic SDK installed"}
-    AVAIL -->|yes| LLM["llm"]
-    AVAIL -->|no| FALLBACK["scripted<br/>(+ note: LLM requested but unavailable)"]
-```
-
-**Scripted mode** (default, no API key). Each specialist runs a fixed, auditable methodology
-in `scripted()` — a known sequence of real `run_command`s in the container (`curl` the target,
-`grep` the cloned source, walk sequential API ids) followed by `report_finding` when the
-output confirms an issue. It is deterministic, and the "AI reasoning" is legible and
-reproducible. It still needs Docker: the commands run in the Kali box.
-
-**LLM mode** (optional: `pip install 'openoffensive[llm]'` + `ANTHROPIC_API_KEY`). Each
-specialist is handed a system prompt, its focus area, and the tool set, and a real model
-decides what to run and what to report. `llm.py` runs a **manual tool-use loop**: it calls
-`client.messages.create(...)` with the tool schemas; for each response it turns text blocks
-into `think` events and executes each `tool_use` block through the same shared registry
-(`run_command` → `docker exec`), feeding the results back as `tool_result` blocks; it stops
-when the model calls `finish`, or when it hits the per-agent step budget
-(`OPENOFFENSIVE_MAX_STEPS`). A `refusal` stop reason ends that agent cleanly. Because every
-action flows through the same registry and the same container, the two modes are directly
-comparable. The default model is `claude-opus-5`, overridable via `OPENOFFENSIVE_MODEL` or
-`--model`.
+Each specialist is handed a system prompt, its focus area, and the tool set, and the model
+decides what to run and what to report. `llm.py` runs a **manual tool-use loop** (`run_agent_llm`):
+it calls `client.messages.create(...)` with the tool schemas; for each response it turns text
+blocks into `think` events and executes each `tool_use` block through the shared registry
+(`run_command` → `docker exec`), feeding the results back as `tool_result` blocks; it stops when
+the model calls `finish`, or when it hits the per-agent step budget (`OPENOFFENSIVE_MAX_STEPS`). A
+`refusal` stop reason ends that agent cleanly. The default model is `claude-opus-5`, overridable
+via `OPENOFFENSIVE_MODEL` or `--model`.
 
 Two important details:
 
-- **The root always orchestrates, in both modes.** `RootAgent.work()` is overridden to plan,
-  spawn specialists, wait, and aggregate — it never runs the LLM loop or a scripted
-  methodology itself. Only the specialists run in the resolved mode.
-- **There is a per-agent safety net.** If LLM mode was resolved but the SDK or key disappears
-  at runtime, a specialist catches `LLMUnavailable` and falls back to its scripted methodology,
-  so a run still produces results.
+- **The root always orchestrates.** `RootAgent.work()` is overridden to plan, spawn specialists,
+  wait, and aggregate — it never runs the tool-use loop itself. Only the specialists reason with
+  the model.
+- **No silent fallback.** If the model becomes unreachable mid-run, `LLMUnavailable` propagates
+  out of the agent and it is marked `stopped` (a crash) — it never falls back to canned or
+  scripted output. A run where every specialist crashes and nothing is found is reported as
+  `error`, and findings only ever come from real tool output.
 
 ## Interfaces
 
 - **CLI** (`cli.py`) — `openoffensive scan | doctor | serve | list | report` (or
   `python -m openoffensive …`). `scan` streams the live log to stdout and returns a
-  CI-friendly exit code: `0` clean, `1` error, `2` findings. `doctor` reports Docker and LLM
+  CI-friendly exit code: `0` clean, `1` error, `2` findings. `doctor` reports Docker and model
   readiness and, with `--build`, pre-builds the sandbox image.
-- **Dashboard** (`server.py` + `web/index.html`) — started with `openoffensive serve` or
-  `./run.sh`. A single-page UI with the agent graph, findings, and a live log fed by SSE
-  (`GET /api/events`), plus a mode badge and a run-history dropdown backed by `GET /api/runs`.
-  A scan is kicked off with `POST /api/scan` (one at a time); it runs in a container exactly
-  like the CLI path, so the dashboard also needs Docker. The server boots the bundled demo on
-  `0.0.0.0` and points the scan at `host.docker.internal` so the container can reach it.
+- **Dashboard** (`server.py` + `web/index.html`) — started with `openoffensive serve <target>`
+  or `./run.sh <target>`. A single-page UI with the agent graph, findings, and a live log fed by
+  SSE (`GET /api/events`), plus a mode badge and a run-history dropdown backed by `GET /api/runs`.
+  A scan is kicked off with `POST /api/scan` (one at a time); it runs in a container exactly like
+  the CLI path, so the dashboard also needs Docker and a model key. The server scans the target it
+  was launched with.
 
 See [USAGE.md](USAGE.md) for the full command and environment reference, and
 [SECURITY.md](SECURITY.md) for the isolation and authorization model.

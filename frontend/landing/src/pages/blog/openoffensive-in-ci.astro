@@ -28,13 +28,13 @@ jobs:
       - name: Run a scan
         env:
           ANTHROPIC_API_KEY: ${'{{'} secrets.ANTHROPIC_API_KEY {'}}'}
-        run: openoffensive scan --mode auto</code></pre>
+        run: openoffensive scan .</code></pre>
 
   <h2>How it behaves in CI</h2>
   <ul>
     <li><strong>Exit codes drive the gate.</strong> A clean run exits <code>0</code>; a run that files findings exits <code>2</code>, which fails the job and blocks the merge.</li>
     <li><strong>Artifacts are written to disk.</strong> Each run saves its report, findings, and a SARIF file under <code>runs/</code>, so you can upload them or publish to code scanning.</li>
-    <li><strong>No key? No problem.</strong> Use <code>--mode scripted</code> for a fast, deterministic pass with zero dependencies and no API key.</li>
+    <li><strong>Bring a key.</strong> A real model drives every scan, so set <code>ANTHROPIC_API_KEY</code> (an encrypted Actions secret); without a reachable model the run fails at preflight instead of emitting canned results.</li>
   </ul>
 
   <h2>Publishing results to GitHub code scanning</h2>
