@@ -1,0 +1,32 @@
+{% extends "reports/base.html" %}
+{% block subtitle %}Executive summary — risk overview{% endblock %}
+{% block body %}
+<div class="section">
+  <h2 class="sec">Risk overview</h2>
+  <p class="prose">{{ headline }}</p>
+  {% include "reports/_severity_bars.html" %}
+</div>
+
+{% if findings %}
+<div class="section">
+  <h2 class="sec">Findings at a glance</h2>
+  <table>
+    <thead><tr><th>Severity</th><th class="num">CVSS</th><th>Finding</th><th>Location</th></tr></thead>
+    <tbody>
+      {% for f in findings %}
+      <tr>
+        <td><span class="chip sev-{{ f.severity }}">{{ f.severity }}</span></td>
+        <td class="num">{{ f.cvss }}</td>
+        <td>{{ f.title }}{% if f.cwe %} <span class="muted">({{ f.cwe }})</span>{% endif %}</td>
+        <td class="muted">{{ f.endpoint|default:f.target|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="section"><div class="no-findings">No findings were reported for this assessment.</div></div>
+{% endif %}
+
+<p class="disclaimer">CVSS is a representative score mapped from severity, not a computed vector. Every finding is drawn from real tool output captured during the assessment. Authorized testing only — this report is confidential.</p>
+{% endblock %}

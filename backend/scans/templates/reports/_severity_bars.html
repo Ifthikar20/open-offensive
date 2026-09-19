@@ -1,0 +1,9 @@
+<div class="bars">
+  {% for s in severities %}
+  <div class="bar-row">
+    <span class="lab">{{ s.key }}</span>
+    <span class="bar-track"><span class="bar-fill sev-{{ s.key }}" style="width:{{ s.pct }}%"></span></span>
+    <span class="n">{{ s.count }}</span>
+  </div>
+  {% endfor %}
+</div>

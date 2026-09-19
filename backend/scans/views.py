@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 
 from django.conf import settings
-from rest_framework import mixins, viewsets
+from django.http import HttpResponse
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -95,6 +96,33 @@ class ScanViewSet(
         """Return just the Markdown report for a scan (handy for the dashboard)."""
         scan = self.get_object()
         return Response({"id": scan.id, "status": scan.status, "report_md": scan.report_md})
+
+    @action(detail=True, methods=["get"], url_path="report_pdf")
+    def report_pdf(self, request, pk=None):
+        """Render this scan as a professional vulnerability-assessment PDF.
+
+        ``?template=executive|technical|owasp`` (default technical). A scan that is
+        not finished (still running, or ended in error) yields no PDF — the real
+        status and error are returned instead, never a report of fabricated data.
+        """
+        from . import reporting
+
+        scan = self.get_object()
+        if scan.status != "done":
+            return Response(
+                {"detail": f"No report available: the scan is '{scan.status}'.",
+                 "status": scan.status, "error": scan.error},
+                status=status.HTTP_409_CONFLICT,
+            )
+        template = (request.query_params.get("template") or reporting.DEFAULT_TEMPLATE).lower()
+        if template not in reporting.TEMPLATES:
+            template = reporting.DEFAULT_TEMPLATE
+        pdf = reporting.render_pdf(scan, template)
+        resp = HttpResponse(pdf, content_type="application/pdf")
+        resp["Content-Disposition"] = (
+            f'attachment; filename="openoffensive-report-{scan.id}-{template}.pdf"'
+        )
+        return resp
 
     @action(detail=True, methods=["get"])
     def events(self, request, pk=None):

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ChevronLeft, Loader2 } from '@lucide/vue'
+import { ChevronLeft, Loader2, Download } from '@lucide/vue'
 
 import { useScansStore } from '@/stores/scans'
 import scansApi from '@/api/scans'
@@ -19,6 +19,9 @@ const TERMINAL = new Set(['done', 'error'])
 const loading = ref(true)
 const error = ref('')
 const showReport = ref(false)
+const downloading = ref(false)
+const pdfTemplate = ref('technical')
+const pdfError = ref('')
 const events = ref([])
 const lastSeq = ref(0)
 let timer = null
@@ -53,6 +56,37 @@ async function fetchEvents() {
     }
   } catch {
     /* keep the events we already have on a transient error */
+  }
+}
+
+async function downloadPdf() {
+  pdfError.value = ''
+  downloading.value = true
+  try {
+    const res = await scansApi.reportPdf(route.params.id, pdfTemplate.value)
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `openoffensive-report-${route.params.id}-${pdfTemplate.value}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    // With responseType 'blob' the error body is a Blob — read the real message out.
+    let msg = e?.displayMessage
+    try {
+      const text = await e?.response?.data?.text?.()
+      if (text) {
+        const j = JSON.parse(text)
+        msg = j.detail || j.error || msg
+      }
+    } catch {
+      /* fall back to displayMessage */
+    }
+    pdfError.value = msg || 'Could not generate the report.'
+  } finally {
+    downloading.value = false
   }
 }
 
@@ -97,8 +131,30 @@ onBeforeUnmount(() => timer && window.clearInterval(timer))
             <template v-if="scan.exit_code != null"> · exit {{ scan.exit_code }}</template>
           </p>
         </div>
-        <StatusPill :status="scan.status" />
+        <div class="flex flex-wrap items-center gap-2">
+          <template v-if="scan.status === 'done'">
+            <select
+              v-model="pdfTemplate"
+              class="h-9 rounded-md border border-border bg-card px-2 text-sm"
+              aria-label="Report template"
+            >
+              <option value="technical">Technical</option>
+              <option value="executive">Executive</option>
+              <option value="owasp">OWASP</option>
+            </select>
+            <Button size="sm" variant="outline" :disabled="downloading" @click="downloadPdf">
+              <Download class="size-4" />
+              {{ downloading ? 'Preparing…' : 'Download PDF' }}
+            </Button>
+          </template>
+          <StatusPill :status="scan.status" />
+        </div>
       </div>
+
+      <Alert v-if="pdfError" variant="destructive">
+        <AlertTitle>Report export failed</AlertTitle>
+        <AlertDescription>{{ pdfError }}</AlertDescription>
+      </Alert>
 
       <Alert v-if="scan.status === 'error'" variant="destructive">
         <AlertTitle>Scan failed</AlertTitle>

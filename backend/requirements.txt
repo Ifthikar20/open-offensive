@@ -3,6 +3,11 @@ Django==5.1.15
 djangorestframework==3.17.2
 django-cors-headers==4.9.0
 
+# PDF report export (renders the report HTML templates to PDF). WeasyPrint needs
+# a few system libraries at runtime: on Debian/Ubuntu install
+#   libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf-2.0-0 libffi-dev
+weasyprint==70.0
+
 # Production extras (uncomment as needed):
 # psycopg[binary]==3.2.3      # PostgreSQL driver (set POSTGRES_DB in .env to use)
 # gunicorn==23.0.0            # WSGI server
