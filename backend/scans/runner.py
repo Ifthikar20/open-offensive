@@ -35,11 +35,9 @@ def _run(scan_pk: int) -> None:
     runs_dir = settings.ENGINE_RUNS_DIR / str(scan_pk)
     runs_dir.mkdir(parents=True, exist_ok=True)
 
-    cmd = [settings.ENGINE_PYTHON, "-m", "openoffensive", "scan"]
-    if scan.target:
-        cmd.append(scan.target)
-    cmd += ["--mode", scan.mode, "--runs-dir", str(runs_dir), "--sandbox", settings.ENGINE_SANDBOX]
-    if scan.target and settings.ENGINE_ALLOW_EXTERNAL:
+    cmd = [settings.ENGINE_PYTHON, "-m", "openoffensive", "scan", scan.target,
+           "--runs-dir", str(runs_dir), "--sandbox", settings.ENGINE_SANDBOX]
+    if settings.ENGINE_ALLOW_EXTERNAL:
         cmd.append("--authorized")
 
     scan.status = "running"

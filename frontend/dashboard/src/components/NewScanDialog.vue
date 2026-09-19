@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Radar } from '@lucide/vue'
 import { useScansStore } from '@/stores/scans'
@@ -16,31 +16,28 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { cn } from '@/lib/utils'
 
 const router = useRouter()
 const scans = useScansStore()
 
 const open = ref(false)
 const target = ref('')
-const mode = ref('auto')
 const busy = ref(false)
 const error = ref('')
 
-const MODES = [
-  { value: 'auto', label: 'Auto', hint: 'LLM agents when a key is set, else scripted' },
-  { value: 'llm', label: 'LLM', hint: 'Full multi-agent run (needs an API key)' },
-  { value: 'scripted', label: 'Scripted', hint: 'Deterministic checks, no LLM' },
-]
+const canSubmit = computed(() => target.value.trim().length > 0)
 
 async function submit() {
+  if (!canSubmit.value) {
+    error.value = 'Enter a target to scan.'
+    return
+  }
   error.value = ''
   busy.value = true
   try {
-    const scan = await scans.create(target.value.trim(), mode.value)
+    const scan = await scans.create(target.value.trim())
     open.value = false
     target.value = ''
-    mode.value = 'auto'
     router.push({ name: 'scan-detail', params: { id: scan.id } })
   } catch (e) {
     error.value = e?.displayMessage || 'Could not start the scan.'
@@ -62,7 +59,8 @@ async function submit() {
       <DialogHeader>
         <DialogTitle>New scan</DialogTitle>
         <DialogDescription>
-          Point the engine at a repo, a live URL, or leave it blank to run the bundled demo.
+          Point the engine at a git repo, a live URL/host, or a local path. Scans need a
+          configured model key and run only against targets you're authorized to test.
         </DialogDescription>
       </DialogHeader>
 
@@ -72,34 +70,9 @@ async function submit() {
           <Input
             id="scan-target"
             v-model="target"
+            required
             placeholder="https://github.com/acme/app  ·  https://staging.acme.com"
           />
-        </div>
-
-        <div class="grid gap-1.5">
-          <Label>Mode</Label>
-          <div class="flex gap-0.5 rounded-[10px] bg-muted p-[3px]">
-            <button
-              v-for="m in MODES"
-              :key="m.value"
-              type="button"
-              :title="m.hint"
-              :class="
-                cn(
-                  'flex-1 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors',
-                  mode === m.value
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )
-              "
-              @click="mode = m.value"
-            >
-              {{ m.label }}
-            </button>
-          </div>
-          <p class="text-[11px] text-muted-foreground">
-            {{ MODES.find((m) => m.value === mode)?.hint }}
-          </p>
         </div>
 
         <Alert v-if="error" variant="destructive">
@@ -107,7 +80,7 @@ async function submit() {
         </Alert>
 
         <DialogFooter>
-          <Button type="submit" :disabled="busy">
+          <Button type="submit" :disabled="busy || !canSubmit">
             {{ busy ? 'Starting…' : 'Run scan' }}
           </Button>
         </DialogFooter>

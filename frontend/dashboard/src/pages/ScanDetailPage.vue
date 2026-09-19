@@ -17,6 +17,7 @@ const scans = useScansStore()
 const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info']
 const TERMINAL = new Set(['done', 'error'])
 const loading = ref(true)
+const error = ref('')
 const showReport = ref(false)
 const events = ref([])
 const lastSeq = ref(0)
@@ -35,6 +36,9 @@ const sortedFindings = computed(() =>
 async function refresh() {
   try {
     await scans.fetchDetail(route.params.id)
+    error.value = ''
+  } catch (e) {
+    error.value = e?.displayMessage || 'The scan could not be loaded.'
   } finally {
     loading.value = false
   }
@@ -86,7 +90,7 @@ onBeforeUnmount(() => timer && window.clearInterval(timer))
     <template v-else-if="scan">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 class="text-2xl font-semibold tracking-tight">{{ scan.target || 'Bundled demo' }}</h1>
+          <h1 class="text-2xl font-semibold tracking-tight">{{ scan.target }}</h1>
           <p class="mt-1 text-sm text-muted-foreground">
             {{ scan.mode }} mode
             <template v-if="scan.engine_scan_id"> · <code>{{ scan.engine_scan_id }}</code></template>
@@ -98,7 +102,7 @@ onBeforeUnmount(() => timer && window.clearInterval(timer))
 
       <Alert v-if="scan.status === 'error'" variant="destructive">
         <AlertTitle>Scan failed</AlertTitle>
-        <AlertDescription>{{ scan.error || 'The engine reported an error.' }}</AlertDescription>
+        <AlertDescription>{{ scan.error || 'The engine reported an error but captured no message.' }}</AlertDescription>
       </Alert>
 
       <Alert v-else-if="running">
@@ -205,5 +209,10 @@ onBeforeUnmount(() => timer && window.clearInterval(timer))
         >
       </div>
     </template>
+
+    <Alert v-else variant="destructive">
+      <AlertTitle>Couldn't load this scan</AlertTitle>
+      <AlertDescription>{{ error || 'The scan could not be loaded.' }}</AlertDescription>
+    </Alert>
   </div>
 </template>
