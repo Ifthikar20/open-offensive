@@ -79,9 +79,14 @@ class Settings:
 
     # --- LLM brain (required to run a scan) ---
     model: str = "claude-opus-5"
-    max_tokens: int = 4096
+    max_tokens: int = 8192       # output cap per step (room for thinking + a tool call)
     max_steps: int = 24          # per-agent tool-call budget in LLM mode
     api_key_present: bool = False
+    # Extended thinking: current models (Opus/Sonnet/Fable) use adaptive thinking +
+    # an effort level; older models (Haiku/legacy) use a fixed token budget.
+    effort: str = "high"          # low | medium | high | xhigh | max
+    thinking_display: bool = True # surface the model's summarized reasoning in the log
+    thinking_budget: int = 2048   # legacy-model fallback only (adaptive models ignore it)
 
     # --- sandbox (Docker) ---
     sandbox_image: str = "openoffensive-sandbox:kali"
@@ -116,9 +121,12 @@ def load_settings() -> Settings:
         host=_env("OPENOFFENSIVE_HOST") or "127.0.0.1",
         port=_env_int("OPENOFFENSIVE_PORT", 8777),
         model=_env("OPENOFFENSIVE_MODEL") or "claude-opus-5",
-        max_tokens=_env_int("OPENOFFENSIVE_MAX_TOKENS", 4096),
+        max_tokens=_env_int("OPENOFFENSIVE_MAX_TOKENS", 8192),
         max_steps=_env_int("OPENOFFENSIVE_MAX_STEPS", 24),
         api_key_present=bool(_env("ANTHROPIC_API_KEY")),
+        effort=(_env("OPENOFFENSIVE_EFFORT") or "high").lower(),
+        thinking_display=_env_bool("OPENOFFENSIVE_SHOW_THINKING", True),
+        thinking_budget=_env_int("OPENOFFENSIVE_THINKING_BUDGET", 2048),
         sandbox_image=_env("OPENOFFENSIVE_SANDBOX_IMAGE") or "openoffensive-sandbox:kali",
         sandbox_network=_env("OPENOFFENSIVE_SANDBOX_NETWORK"),
         sandbox_backend=(_env("OPENOFFENSIVE_SANDBOX") or "auto").lower(),

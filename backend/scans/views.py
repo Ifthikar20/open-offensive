@@ -58,6 +58,8 @@ def _read_events(scan: Scan, after: int = 0):
                     "ts": ev.get("ts"),
                     "level": ev.get("level", "system"),
                     "agent": ev.get("agent", "system"),
+                    "agent_id": ev.get("agent_id", "system"),
+                    "role": ev.get("role", "system"),
                     "message": ev.get("message", ""),
                     "data": data,
                 })

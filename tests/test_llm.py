@@ -29,12 +29,13 @@ from openoffensive.tools import ToolContext
 # minimal-but-correct fakes for the anthropic SDK objects
 # ---------------------------------------------------------------------------
 class FakeBlock:
-    def __init__(self, type, *, text=None, name=None, input=None, id=None):
+    def __init__(self, type, *, text=None, name=None, input=None, id=None, thinking=None):
         self.type = type
         self.text = text
         self.name = name
         self.input = input
         self.id = id
+        self.thinking = thinking
 
 
 class FakeUsage:
@@ -261,3 +262,65 @@ def test_loop_stops_at_step_budget(tmp_path, monkeypatch):
     assert ctx.finished is False
     assert len(module.calls) == 2  # exactly the step budget
     assert any(ev.level == "think" and "budget" in ev.message for ev in coord.events)
+
+
+# ---------------------------------------------------------------------------
+# extended thinking + live tool output
+# ---------------------------------------------------------------------------
+def test_thinking_block_emitted_as_reasoning(tmp_path, monkeypatch):
+    responses = [
+        FakeResponse([
+            FakeBlock("thinking", thinking="Let me reason about the attack surface first."),
+            FakeBlock("tool_use", name="finish", input={}, id="f1"),
+        ]),
+    ]
+    install_fake_anthropic(monkeypatch, responses)
+    coord = Coordinator("http://x", mode="llm")
+    ctx, settings, _sb = _llm_ctx(coord, tmp_path)
+    llm_mod.run_agent_llm(ctx, system_prompt="s", task="t",
+                          tool_names=["finish"], settings=settings)
+    assert any(ev.level == "think" and ev.data.get("reasoning")
+               and "reason about" in ev.message for ev in coord.events)
+
+
+def test_tool_event_carries_command_and_output(tmp_path, monkeypatch):
+    responses = [
+        FakeResponse([FakeBlock("tool_use", name="run_command",
+                                input={"command": "curl -s http://x/"}, id="t1")]),
+        FakeResponse([FakeBlock("tool_use", name="finish", input={}, id="t2")]),
+    ]
+    install_fake_anthropic(monkeypatch, responses)
+    coord = Coordinator("http://x", mode="llm")
+    ctx, settings, _sb = _llm_ctx(coord, tmp_path)  # FakeSandbox default → "TOOL OUTPUT"
+    llm_mod.run_agent_llm(ctx, system_prompt="s", task="t",
+                          tool_names=["run_command", "finish"], settings=settings)
+    tool_evs = [ev for ev in coord.events if ev.level == "tool"]
+    assert any(ev.data.get("command") == "curl -s http://x/" for ev in tool_evs)
+    assert any("TOOL OUTPUT" in (ev.data.get("output") or "") for ev in tool_evs)
+
+
+def test_adaptive_thinking_params_for_current_model(tmp_path, monkeypatch):
+    module = install_fake_anthropic(
+        monkeypatch, [FakeResponse([FakeBlock("tool_use", name="finish", input={}, id="f")])])
+    coord = Coordinator("http://x", mode="llm")
+    ctx, settings, _sb = _llm_ctx(coord, tmp_path, model="claude-opus-5")
+    llm_mod.run_agent_llm(ctx, system_prompt="s", task="t",
+                          tool_names=["finish"], settings=settings)
+    call = module.calls[0]
+    assert call["thinking"]["type"] == "adaptive"
+    assert call["thinking"]["display"] == "summarized"
+    assert call["output_config"]["effort"] == "high"
+    assert "budget_tokens" not in call["thinking"]     # rejected on current models
+
+
+def test_budget_thinking_params_for_legacy_model(tmp_path, monkeypatch):
+    module = install_fake_anthropic(
+        monkeypatch, [FakeResponse([FakeBlock("tool_use", name="finish", input={}, id="f")])])
+    coord = Coordinator("http://x", mode="llm")
+    ctx, settings, _sb = _llm_ctx(coord, tmp_path, model="claude-haiku-4-5")
+    llm_mod.run_agent_llm(ctx, system_prompt="s", task="t",
+                          tool_names=["finish"], settings=settings)
+    call = module.calls[0]
+    assert call["thinking"]["type"] == "enabled"
+    assert call["thinking"]["budget_tokens"] >= 1024
+    assert call["max_tokens"] > call["thinking"]["budget_tokens"]

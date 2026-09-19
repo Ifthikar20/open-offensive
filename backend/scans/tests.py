@@ -8,11 +8,14 @@ finding data, and the endpoint is exercised through Django's test client.
 from __future__ import annotations
 
 import json
+import tempfile
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from .models import Scan
+from .views import _read_events
 
 _FINDINGS = [
     {"id": "VULN-0001", "title": "Hardcoded live secret key", "severity": "critical",
@@ -106,3 +109,37 @@ class ListSerializerTests(TestCase):
         resp = self.client.post("/api/scans/", {"target": "   "}, content_type="application/json")
         self.assertEqual(resp.status_code, 400)
         self.assertIn("target", resp.json())
+
+
+class EventsPassthroughTests(TestCase):
+    """The live-log endpoint must pass role + agent_id and the rich data payload
+    (reasoning, tool command/output) through to the dashboard."""
+
+    def test_read_events_includes_role_agent_id_and_data(self):
+        User = get_user_model()
+        user = User.objects.create_user(username="eve", password="pw-not-secret")
+        scan = Scan.objects.create(owner=user, target="https://x", mode="llm", status="running")
+        events = [
+            {"seq": 1, "ts": 1.0, "level": "graph", "agent_id": "root1", "agent": "Root",
+             "role": "root", "message": "spawned", "data": {"status": "running"}},
+            {"seq": 2, "ts": 2.0, "level": "think", "agent_id": "a1", "agent": "Recon Scout",
+             "role": "recon", "message": "reasoning about the surface", "data": {"reasoning": True}},
+            {"seq": 3, "ts": 3.0, "level": "tool", "agent_id": "a1", "agent": "Recon Scout",
+             "role": "recon", "message": "$ curl",
+             "data": {"command": "curl -s https://x/", "output": "HTTP/1.1 200 OK", "ok": True}},
+        ]
+        with tempfile.TemporaryDirectory() as d:
+            run = Path(d) / str(scan.pk) / "scan-1"
+            run.mkdir(parents=True)
+            (run / "events.jsonl").write_text(
+                "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8")
+            with override_settings(ENGINE_RUNS_DIR=d):
+                out, last = _read_events(scan)
+
+        self.assertEqual(last, 3)
+        by_seq = {e["seq"]: e for e in out}
+        self.assertEqual(by_seq[1]["role"], "root")
+        self.assertEqual(by_seq[1]["agent_id"], "root1")
+        self.assertTrue(by_seq[2]["data"].get("reasoning"))     # model reasoning flag
+        self.assertEqual(by_seq[3]["data"].get("command"), "curl -s https://x/")
+        self.assertIn("output", by_seq[3]["data"])              # live tool output

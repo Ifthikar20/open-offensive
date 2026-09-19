@@ -46,10 +46,13 @@ class ToolContext:
     # -- the sandbox ----------------------------------------------------------
     def run(self, command: str, timeout: float = 180) -> Any:
         """Run a command in the container; log it and its result. Returns ExecResult."""
-        self.coord.emit("tool", self.agent, f"$ {command}")
+        self.coord.emit("tool", self.agent, f"$ {command}", command=command)
         res = self.sandbox.exec(command, timeout=min(int(timeout or 180), _MAX_EXEC_TIMEOUT))
         tag = "timeout" if res.timed_out else f"exit {res.exit_code}"
-        self.coord.emit("tool", self.agent, f"  → {tag}, {len(res.stdout)}b", ok=res.ok)
+        # Attach the real (truncated) output so the live log shows what came back,
+        # not just a byte count. Capped so events.jsonl stays small.
+        self.coord.emit("tool", self.agent, f"  → {tag}, {len(res.stdout)}b",
+                        ok=res.ok, command=command, output=res.combined(limit=2000))
         # Remember it as provenance for whatever finding the agent files next.
         self.last_command = command
         self.last_output = res.combined(limit=1200)
