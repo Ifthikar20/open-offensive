@@ -1,11 +1,9 @@
 """Optional LLM brain — drives one agent with Claude via a manual tool-use loop.
 
-This is what turns OpenOffensive from a scripted demo into a real agent: instead
-of following a fixed methodology, the agent asks a model what to do next, the
-model calls tools (real HTTP probes, report_finding, load_skill…), and the loop
-feeds the results back until the model calls ``finish``. Every tool call still
-flows through the shared registry, so it is logged and scope-guarded exactly like
-scripted mode.
+This is the agent's brain: the agent asks a model what to do next, the model
+calls tools (real HTTP probes, report_finding, load_skill…), and the loop feeds
+the results back until the model calls ``finish``. Every tool call flows through
+the shared registry, so it is logged and scope-guarded.
 
 The ``anthropic`` SDK is imported lazily so the package installs and runs with no
 dependencies; LLM mode needs ``pip install 'openoffensive[llm]'`` and an

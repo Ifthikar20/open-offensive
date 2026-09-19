@@ -46,11 +46,11 @@ fi
 ok "Python $PYV detected ($PY)"
 
 # ---- 2. what to install ---------------------------------------------------
-# The core is pure standard library (scripted mode). The [llm] extra adds the
-# model client for the AI agents. We install the extra by default.
+# The engine core is pure standard library. The [llm] extra adds the model client
+# the AI agents reason with (required to run a scan). We install it by default.
 if [ "${OPENOFFENSIVE_NO_LLM:-}" = "1" ]; then
   SPEC="git+${REPO_URL}.git@${REF}"
-  EXTRA_NOTE="core only (scripted mode)"
+  EXTRA_NOTE="core only (no model client; scans need the [llm] extra + a key)"
 else
   SPEC="openoffensive[llm] @ git+${REPO_URL}.git@${REF}"
   EXTRA_NOTE="with the LLM extra"
@@ -132,16 +132,16 @@ esac
 # ---- 5. next steps --------------------------------------------------------
 say ""
 say "${BOLD}Next steps${RESET}"
-say "  ${DIM}# 1. point the AI agents at a model (Anthropic shown; scripted mode needs no key)${RESET}"
+say "  ${DIM}# 1. point the AI agents at a model (required — they reason with it)${RESET}"
 say "  export ANTHROPIC_API_KEY=\"your-api-key\""
 say ""
-say "  ${DIM}# 2. run your first assessment${RESET}"
-say "  openoffensive scan                                # bundled demo app"
+say "  ${DIM}# 2. run your first assessment (authorized targets only)${RESET}"
+say "  openoffensive scan https://example.com            # a live URL"
 say "  openoffensive scan https://github.com/org/repo    # a git repo"
-say "  openoffensive serve                               # live dashboard"
+say "  openoffensive serve https://example.com           # live dashboard"
 say ""
 say "  ${DIM}# no Docker / locked-down network? run tools on the host:${RESET}"
-say "  OPENOFFENSIVE_SANDBOX=local openoffensive scan"
+say "  OPENOFFENSIVE_SANDBOX=local openoffensive scan https://example.com"
 say ""
 ok  "Done. Happy hunting — ${DIM}authorized targets only.${RESET}"
 say ""

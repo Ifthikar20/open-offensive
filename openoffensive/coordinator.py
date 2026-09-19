@@ -20,10 +20,10 @@ from .models import AgentState, Finding, LogEvent, now
 
 
 class Coordinator:
-    def __init__(self, target: str, mode: str = "scripted") -> None:
+    def __init__(self, target: str, mode: str = "llm") -> None:
         # Drop a trailing slash so probes build "http://host/path", not "…//path".
         self.target = target.rstrip("/") if target else target
-        self.mode = mode              # "scripted" | "llm" — how agents decide next actions
+        self.mode = mode              # "llm" — a real model drives every agent
         self._lock = threading.Lock()
         self._seq = 0
         self._finding_seq = 0
@@ -31,7 +31,7 @@ class Coordinator:
         self.agents: dict[str, AgentState] = {}
         self.findings: list[Finding] = []
         self._subscribers: list[queue.Queue] = []
-        # A pretend spend meter, so the UI can show the budget idea a real engine relies on.
+        # Live spend meter — real model token cost, accumulated by the LLM layer.
         self.turns = 0
         self.cost = 0.0
         self.status = "idle"          # idle|running|done
@@ -100,8 +100,11 @@ class Coordinator:
         agent.status = status
         self.emit("graph", agent, note or f"status → {status}", status=status)
 
-    def bill(self, agent: AgentState, turns: int = 1, cost: float = 0.012) -> None:
-        """Charge a little 'budget' so the run has a visible meter, like a real engine."""
+    def bill(self, agent: AgentState, turns: int = 1, cost: float = 0.0) -> None:
+        """Record real model spend (turns + token cost) so the run has a live meter.
+
+        The LLM layer passes the actual per-call token cost; there is no scripted
+        path, so an unbilled run simply shows zero."""
         with self._lock:
             self.turns += turns
             self.cost += cost

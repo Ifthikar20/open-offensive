@@ -1,8 +1,9 @@
 """Runtime configuration, resolved from environment variables.
 
-Everything is optional: with no configuration at all, OpenOffensive runs in
-scripted mode against its bundled demo target. Set ``ANTHROPIC_API_KEY`` (and
-install the ``llm`` extra) to let the agents reason with a real model.
+OpenOffensive runs model-driven scans: set ``ANTHROPIC_API_KEY`` (and install
+the ``llm`` extra) so the agents can reason with a real model. Without a
+reachable model a scan fails loudly at preflight — it never falls back to canned
+or demo output. Everything else has a sensible default.
 """
 
 from __future__ import annotations
@@ -76,9 +77,7 @@ class Settings:
     host: str = "127.0.0.1"
     port: int = 8777
 
-    # --- LLM brain (optional) ---
-    # mode: "auto" (LLM when a key is available, else scripted), "llm", or "scripted".
-    llm_mode: str = "auto"
+    # --- LLM brain (required to run a scan) ---
     model: str = "claude-opus-5"
     max_tokens: int = 4096
     max_steps: int = 24          # per-agent tool-call budget in LLM mode
@@ -100,23 +99,14 @@ class Settings:
 
     # --- scope / safety ---
     # Extra hostnames the tool layer is allowed to reach, beyond the scan target.
-    # The bundled demo target is always allowed; this only widens scope when a
-    # user deliberately points the app at something they are authorized to test.
+    # Only widens scope when a user deliberately points the app at something they
+    # are authorized to test.
     scope_allow: tuple[str, ...] = field(default_factory=tuple)
 
-    # --- pacing (scripted mode) ---
+    # --- pacing ---
     # Multiplier on the small sleeps that make the live log readable. 0 = instant
     # (used by tests); 1.0 = human-watchable default.
     speed: float = 1.0
-
-    @property
-    def llm_enabled(self) -> bool:
-        """Whether this run should actually use a model."""
-        if self.llm_mode == "scripted":
-            return False
-        if self.llm_mode == "llm":
-            return True
-        return self.api_key_present  # "auto"
 
 
 @lru_cache(maxsize=1)
@@ -125,7 +115,6 @@ def load_settings() -> Settings:
     return Settings(
         host=_env("OPENOFFENSIVE_HOST") or "127.0.0.1",
         port=_env_int("OPENOFFENSIVE_PORT", 8777),
-        llm_mode=(_env("OPENOFFENSIVE_LLM_MODE") or "auto").lower(),
         model=_env("OPENOFFENSIVE_MODEL") or "claude-opus-5",
         max_tokens=_env_int("OPENOFFENSIVE_MAX_TOKENS", 4096),
         max_steps=_env_int("OPENOFFENSIVE_MAX_STEPS", 24),

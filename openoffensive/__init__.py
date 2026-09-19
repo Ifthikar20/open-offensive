@@ -2,8 +2,8 @@
 
 A root orchestrator delegates to specialist sub-agents that load skills, drive a
 real HTTP tool layer against a target, and file validated findings — with a live
-log you can watch. Agents run a scripted methodology out of the box, or reason
-with a real model when one is configured.
+log you can watch. Every agent reasons with a real model (set ANTHROPIC_API_KEY);
+findings come only from real tool output, never canned data.
 """
 
 __version__ = "1.0.0"

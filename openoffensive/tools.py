@@ -1,10 +1,10 @@
 """The tool layer — one registry, executed INSIDE the per-scan container.
 
-The core tool is ``run_command``: the model (or a scripted playbook) runs shell
-commands in the Kali sandbox — nmap, curl, sqlmap, nikto, gobuster, or grepping
-the target's source under ``/workspace`` — and the stdout/exit code come back as
-the next observation. ``report_finding`` files a validated issue; ``finish`` ends
-the agent. The same registry backs both the LLM loop and the scripted playbook.
+The core tool is ``run_command``: the model runs shell commands in the Kali
+sandbox — nmap, curl, sqlmap, nikto, gobuster, or grepping the target's source
+under ``/workspace`` — and the stdout/exit code come back as the next
+observation. ``report_finding`` files a validated issue; ``finish`` ends the
+agent.
 """
 
 from __future__ import annotations
@@ -62,9 +62,9 @@ class ToolContext:
         severity = (severity or "info").lower().strip()
         if severity not in ("critical", "high", "medium", "low", "info"):
             severity = "info"
-        # Provenance: prefer what the caller passed (scripted playbooks quote the
-        # exact matched line); otherwise stamp the agent's most recent command +
-        # output, so an LLM-filed finding is still traceable to real container I/O.
+        # Provenance: prefer what the caller passed; otherwise stamp the agent's
+        # most recent command + output, so a filed finding is still traceable to
+        # real container I/O.
         command = command or self.last_command
         output = (output or self.last_output or "")[:1200]
         finding = Finding(id="", title=title, severity=severity, target=self.target,

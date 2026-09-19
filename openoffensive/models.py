@@ -93,8 +93,8 @@ class ScanConfig:
     """Everything needed to launch one scan."""
     target: str
     scan_id: str
-    mode: str = "scripted"        # "scripted" | "llm"
-    model: str | None = None      # resolved model id when mode == "llm"
+    mode: str = "llm"             # a real model drives every agent
+    model: str | None = None      # resolved model id
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

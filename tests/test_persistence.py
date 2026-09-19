@@ -52,7 +52,7 @@ def test_list_runs_reports_total_and_status(scanned):
     assert rec["scan_id"] == scanned.scan_id
     assert rec["status"] == "done"
     assert rec["total"] == 6
-    assert rec["mode"] == "scripted"
+    assert rec["mode"] == "llm"
     assert rec["target"] == scanned.target
     assert rec["top_severity"] == "critical"
 
@@ -62,7 +62,7 @@ def test_list_runs_sorted_newest_first(scanned):
     store = scanned.store
     older = scanned.result
     newer = type(older)(
-        scan_id="scan-newer", target=older.target, mode="scripted", status="done",
+        scan_id="scan-newer", target=older.target, mode="llm", status="done",
         findings=[], counts={}, started_at=older.started_at + 100.0,
         finished_at=older.finished_at, report_md="# later",
     )
@@ -78,7 +78,7 @@ def test_load_run_returns_saved_record(scanned):
     assert rec is not None
     assert rec["scan_id"] == scanned.scan_id
     assert rec["counts"]["high"] == 2
-    assert rec["mode"] == "scripted"
+    assert rec["mode"] == "llm"
 
 
 def test_load_run_missing_returns_none(scanned):

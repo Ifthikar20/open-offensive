@@ -13,7 +13,7 @@ from . import reporting
 from .agents import RootAgent
 from .config import Settings, load_settings
 from .coordinator import Coordinator
-from .llm import llm_available, preflight_model
+from .llm import preflight_model
 from .models import ScanResult
 from .persistence import RunStore
 from .sandbox import (SANDBOX_DIR, LocalSandbox, SandboxError, docker_available,
@@ -42,17 +42,6 @@ def _failed_from_crashes(coord: Coordinator) -> tuple[bool, str]:
     if crashed and not coord.findings:
         return True, _first_crash_reason(coord) or "all agents stopped after errors"
     return False, ""
-
-
-def resolve_mode(settings: Settings) -> tuple[str, str]:
-    """Return (mode, note). LLM is the operating mode unless scripted is explicitly
-    requested (``--mode scripted`` / ``OPENOFFENSIVE_LLM_MODE=scripted``). In every
-    other case the mode is "llm"; if a key or the SDK is missing, or the model is
-    unreachable, the scan fails LOUDLY at preflight rather than silently degrading
-    to a scripted playbook."""
-    if settings.llm_mode == "scripted":
-        return "scripted", ""
-    return "llm", ""
 
 
 def classify_target(target: str) -> str:
@@ -117,17 +106,14 @@ def run_scan(coord: Coordinator, *, settings: Optional[Settings] = None,
         coord.on_event = lambda ev: _append_event(_event_log, ev)
 
     created_sandbox = sandbox is None
-    mode, note = resolve_mode(settings)
+    mode = "llm"
     coord.mode = mode
     coord.status = "running"
     coord.started_at = time.time()
     backend = (settings.sandbox_backend or "auto") if created_sandbox else "injected"
     coord.emit("system", None,
                f"scan started against {coord.target}  [mode: {mode} · sandbox: {backend}]")
-    if note:
-        coord.emit("system", None, note)
-    if mode == "llm":
-        coord.emit("system", None, f"agents reasoning with model {settings.model}")
+    coord.emit("system", None, f"agents reasoning with model {settings.model}")
 
     status = "done"
 
@@ -135,16 +121,14 @@ def run_scan(coord: Coordinator, *, settings: Optional[Settings] = None,
         coord.emit(level, None, msg)
 
     try:
-        # In LLM mode the agents call the model from the host on their first step;
-        # verify it's reachable now, before spending time building the container.
-        if mode == "llm":
-            ok, msg = preflight_model(settings)
-            if not ok:
-                raise PreflightError(
-                    "the model is unreachable, so the agents can't reason — "
-                    f"{msg}. Set ANTHROPIC_API_KEY (and `pip install 'openoffensive[llm]'`) "
-                    "and run `openoffensive doctor`, or pass --mode scripted to run the "
-                    "no-key demo playbook.")
+        # The agents call the model from the host on their first step; verify it's
+        # reachable now, before spending time building the container.
+        ok, msg = preflight_model(settings)
+        if not ok:
+            raise PreflightError(
+                "the model is unreachable, so the agents can't reason — "
+                f"{msg}. Set ANTHROPIC_API_KEY (and `pip install 'openoffensive[llm]'`) "
+                "and run `openoffensive doctor`.")
         if created_sandbox:
             desired = (settings.sandbox_backend or "auto").lower()
             if desired not in ("docker", "local"):

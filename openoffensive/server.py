@@ -1,8 +1,8 @@
 """The dashboard server — serves the single-page UI, streams the live log over
-Server-Sent Events, exposes a small REST API (start a scan, browse history), and
-boots the bundled vulnerable demo target so there is always something to scan.
+Server-Sent Events, and exposes a small REST API (start a scan against the
+target it was launched with, browse history).
 
-Pure standard library. Started via ``openoffensive serve`` or ``./run.sh``.
+Pure standard library. Started via ``openoffensive serve <target>``.
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ from urllib.parse import urlparse
 from . import skills
 from .config import Settings, load_settings
 from .coordinator import Coordinator
-from .demo_target import serve_in_thread
 from .persistence import RunStore
 from .runner import run_scan
 
@@ -28,7 +27,7 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 
 
 class App:
-    """Shared server state: the current run, run history, and the demo target."""
+    """Shared server state: the current run, run history, and the scan target."""
 
     def __init__(self, settings: Settings, target_url: str) -> None:
         self.settings = settings
@@ -130,14 +129,12 @@ class Handler(BaseHTTPRequestHandler):
                     "turns": 0, "cost": 0.0}
         snap["scan_id"] = APP.scan_id
         snap["scanning"] = APP.scanning()
-        # Intended mode: LLM is the default; scripted only when explicitly selected.
-        intended = "scripted" if APP.settings.llm_mode == "scripted" else "llm"
-        snap["mode"] = coord.mode if coord else intended
-        snap["llm_enabled"] = APP.settings.llm_enabled
+        snap["mode"] = coord.mode if coord else "llm"
+        snap["llm_enabled"] = APP.settings.api_key_present
         snap["model"] = APP.settings.model
         snap["backend"] = getattr(APP, "backend", "docker")
-        # A model-driven scan needs a key; surface its absence up front.
-        snap["key_missing"] = (intended == "llm" and not APP.settings.llm_enabled)
+        # A scan needs a model key; surface its absence up front.
+        snap["key_missing"] = not APP.settings.api_key_present
         # The most recent error message, for a prominent dashboard banner.
         last_err = ""
         if coord is not None:
@@ -193,17 +190,11 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
 
-def main(open_browser: bool = True) -> None:
+def main(target_url: str, open_browser: bool = True) -> None:
     global APP
     settings = load_settings()
-    # Bind the demo on all interfaces. The Docker sandbox reaches it via
-    # host.docker.internal; the local (host-execution) sandbox reaches it on the
-    # loopback, where host.docker.internal does not resolve.
     from .sandbox import docker_available, resolve_backend
     backend = resolve_backend(settings)
-    demo_host = "127.0.0.1" if backend == "local" else "host.docker.internal"
-    demo_srv, _ = serve_in_thread("0.0.0.0", 0)
-    target_url = f"http://{demo_host}:{demo_srv.server_address[1]}"
     APP = App(settings, target_url)
     APP.backend = backend
 
@@ -211,19 +202,16 @@ def main(open_browser: bool = True) -> None:
 
     httpd = ThreadingHTTPServer((settings.host, settings.port), Handler)
     dash = f"http://{settings.host}:{httpd.server_address[1]}"
-    if settings.llm_mode == "scripted":
-        mode = "scripted"
-    else:
-        mode = "llm (" + settings.model + ")"
-        if not settings.llm_enabled:
-            mode += "  — no ANTHROPIC_API_KEY set, scans will error until you set one"
+    mode = "llm (" + settings.model + ")"
+    if not settings.api_key_present:
+        mode += "  — no ANTHROPIC_API_KEY set, scans will error until you set one"
     if backend == "docker":
         docker_line = "OK" if docker_ok else "UNAVAILABLE — " + docker_reason + " (docker backend selected)"
     else:
         docker_line = ("OK" if docker_ok else "unavailable") + " — local backend: tools run on the host (no isolation)"
     print("\n  OpenOffensive — multi-agent pentest dashboard")
     print(f"  dashboard : {dash}")
-    print(f"  target    : {target_url}  (bundled vulnerable demo app)")
+    print(f"  target    : {target_url}")
     print(f"  mode      : {mode}")
     print(f"  sandbox   : {backend}")
     print(f"  docker    : {docker_line}")
@@ -241,4 +229,8 @@ def main(open_browser: bool = True) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) < 2:
+        print("usage: python -m openoffensive.server <target>", file=sys.stderr)
+        sys.exit(2)
+    main(sys.argv[1])
