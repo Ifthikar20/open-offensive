@@ -26,9 +26,10 @@ severity, a CVSS score, evidence, a proof-of-concept, and a fix — streamed to 
 Point it at a git repo, a live URL, or a local directory.
 
 > [!IMPORTANT]
-> **A model key drives the agents.** With `ANTHROPIC_API_KEY` set (and `pip install 'openoffensive[llm]'`),
-> a real model decides each command. Without a key a scan fails with a clear error — or pass
-> `--mode scripted` to run a fixed in-container playbook of the same tools, no key required.
+> **A model key is required.** A real model (Anthropic Claude) drives every agent, so set
+> `ANTHROPIC_API_KEY` (and `pip install 'openoffensive[llm]'`) before scanning. Without a
+> reachable model the scan fails loudly at preflight — it never falls back to canned or demo
+> output. Findings only ever come from real tool output.
 
 ## ✨ Highlights
 
@@ -43,8 +44,8 @@ Point it at a git repo, a live URL, or a local directory.
 
 ## 🚀 Quickstart
 
-**Prerequisites:** Python 3.9+ · (optional) Docker for the sandboxed container · a model key for the
-AI agents ([Anthropic](https://console.anthropic.com/); scripted mode needs none).
+**Prerequisites:** Python 3.9+ · (optional) Docker for the sandboxed container · a required model key
+for the AI agents ([Anthropic](https://console.anthropic.com/)).
 
 **Install** — one line puts the `openoffensive` CLI on your PATH (prefers `pipx`, falls back to `pip --user`):
 
@@ -54,9 +55,10 @@ curl -sSL https://raw.githubusercontent.com/Ifthikar20/open-offensive/clean-main
 
 <sub>Rather read before you pipe? The script is [`install.sh`](install.sh). Or install the package
 directly: <code>pipx install "openoffensive[llm] @ git+https://github.com/Ifthikar20/open-offensive.git"</code>.
-Set <code>OPENOFFENSIVE_NO_LLM=1</code> for the zero-dependency core (scripted mode only).</sub>
+Set <code>OPENOFFENSIVE_NO_LLM=1</code> for the zero-dependency core (a scan still needs the
+<code>[llm]</code> extra and a key).</sub>
 
-**Configure** your AI provider (the agents need a key; scripted mode doesn't):
+**Configure** your AI provider (the agents require a key):
 
 ```bash
 export ANTHROPIC_API_KEY="your-api-key"
@@ -65,15 +67,16 @@ export ANTHROPIC_API_KEY="your-api-key"
 **Run your first assessment:**
 
 ```bash
-openoffensive scan                                     # bundled demo app
-openoffensive scan https://github.com/org/repo         # clone a git repo and scan it
-openoffensive scan https://your-app.com --authorized   # a live target you're allowed to test
-openoffensive serve                                    # live dashboard
+openoffensive scan https://github.com/org/repo          # clone a git repo and scan it
+openoffensive scan ./path/to/source                     # scan a local directory
+openoffensive scan https://your-app.com --authorized    # a live target you're allowed to test
+openoffensive serve https://your-app.com --authorized   # live dashboard for a target
 ```
 
-`scan` with no target starts a bundled, deliberately vulnerable demo app on the host, reachable by
-the sandbox (`host.docker.internal` for Docker, `127.0.0.1` for local), scans it, prints the live
-log, writes artifacts to `runs/`, and exits `2`. A non-local URL target requires `--authorized`.
+`scan` requires an explicit target — a git repo URL, a live URL/host, or a local directory; there is
+no default demo target. Each run preflights the model, scans the target, prints the live log, writes
+artifacts to `runs/`, and exits `2` when it files findings. A non-local URL target requires
+`--authorized`.
 
 <details>
 <summary><b>Install from source</b> (for contributors)</summary>
@@ -133,24 +136,21 @@ For environments where Docker Hub and apt are unreachable, a **portable image**
 equivalent toolset (nmap, sqlmap, wafw00f, wapiti, dirsearch, arjun, ffuf, gobuster, nuclei, httpx)
 from PyPI, git, and static release binaries — building through an egress proxy when one is present.
 
-## 🖥️ Two run modes
+## 🖥️ How the agents run
 
-| Mode | What decides the next command | Key |
-|---|---|---|
-| **llm** | a real model, per step, in a tool-use loop | required |
-| **scripted** | a fixed playbook of real in-container commands | not needed |
-
-The mode auto-resolves: **llm** when a key is present, otherwise pass `--mode scripted`. Both run the
-same tools in the same sandbox.
+A real model (Anthropic Claude) drives every specialist through a tool-use loop: it decides the next
+command, runs it in the sandbox, reads the real output, and repeats until it files a finding or calls
+`finish`. There is no scripted or canned mode. A scan needs a reachable model — without one it fails
+at preflight rather than producing empty or demo output — and findings only ever come from real tool
+output. The default model is `claude-opus-5`, overridable via `OPENOFFENSIVE_MODEL` or `--model`.
 
 ## 🛡️ Safety
 
 > [!WARNING]
 > **Authorized testing only.** The agent runs arbitrary commands — that is the point — but it does so
-> inside an isolated, single-use container, and it is told to touch only the in-scope target. By
-> default it tests just its own bundled, deliberately vulnerable demo app. The CLI refuses a non-local
-> URL target without `--authorized`. Never aim it at systems you do not own or lack explicit written
-> permission to test. Never deploy the demo target — it is vulnerable on purpose.
+> inside an isolated, single-use container, and it is told to touch only the in-scope target you name.
+> Every scan requires an explicit target, and the CLI refuses a non-local URL target without
+> `--authorized`. Never aim it at systems you do not own or lack explicit written permission to test.
 
 See [docs/SECURITY.md](docs/SECURITY.md).
 
@@ -163,14 +163,13 @@ open-offensive/
 ├── docs/                      # the documentation set (below)
 └── openoffensive/             # the engine
     ├── cli.py                 # openoffensive scan | doctor | serve | list | report
-    ├── server.py              # dashboard HTTP server + SSE; boots the demo target
+    ├── server.py              # dashboard HTTP server + SSE; scans the target it's launched with
     ├── runner.py              # preflight → sandbox → target in → root agent → persist
     ├── coordinator.py         # agent graph + event bus + findings store
     ├── agents.py              # RootAgent + Recon / Injection / Access specialists
     ├── tools.py               # the tool registry, executed inside the container
-    ├── llm.py                 # optional model brain (manual tool-use loop)
+    ├── llm.py                 # the model brain (manual tool-use loop)
     ├── reporting.py           # findings → Markdown + SARIF 2.1.0
-    ├── demo_target.py         # "Juice-Box" — intentionally vulnerable demo app
     ├── sandbox/               # the sandbox runtime
     │   ├── docker.py          #   DockerSandbox — one container per scan, via the docker CLI
     │   ├── local.py           #   LocalSandbox — host-execution fallback (no Docker)
@@ -189,7 +188,7 @@ open-offensive/
 | [docs/USAGE.md](docs/USAGE.md) | Requirements, install, every CLI flag, all environment variables, the image build, and the artifacts. |
 | [docs/TESTING.md](docs/TESTING.md) | Running the pytest suite without Docker, the Docker-gated integration test, and a real container scan. |
 | [docs/EXTENDING.md](docs/EXTENDING.md) | Adding a specialist, a tool, or a skill; swapping the model; extending the sandbox image. |
-| [docs/SECURITY.md](docs/SECURITY.md) | The isolation model, scope reliance, the `--authorized` gate, and the demo target. |
+| [docs/SECURITY.md](docs/SECURITY.md) | The isolation model, scope reliance, the `--authorized` gate, and handling findings. |
 
 ## 📄 License
 

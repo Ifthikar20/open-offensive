@@ -59,40 +59,40 @@
 }
 
 [data-theme='dark'] {
-  /* Dark mode = black and white. Pure black surfaces, white ink, hairline white
-     borders; only tints are the brand accent + semantic status colours. Text
-     hierarchy is white vs. 70% white — never a mid grey. */
-  --background: #000000;
+  /* Dark mode = a layered near-black (Vercel-style): surfaces step up from the
+     page so cards and panels read with depth; white ink, subtle white borders;
+     the only tints are the brand accent + semantic status colours. */
+  --background: #0a0a0a;
   --foreground: #ffffff;
-  --card: #000000;
+  --card: #101010;
   --card-foreground: #ffffff;
-  --popover: #0f0f0f;
+  --popover: #1a1a1a;
   --popover-foreground: #ffffff;
   --primary: #ffffff;
-  --primary-foreground: #000000;
-  --secondary: #1a1a1a;
+  --primary-foreground: #0a0a0a;
+  --secondary: #1f1f1f;
   --secondary-foreground: #ffffff;
-  --muted: #141414;
-  --muted-foreground: #b3b3b3;
-  --accent: #1f1f1f;
+  --muted: #171717;
+  --muted-foreground: #a1a1a1;
+  --accent: #1c1c1c;
   --accent-foreground: #ffffff;
   --destructive: #ff5f5f;
   --destructive-foreground: #000000;
-  --border: rgba(255, 255, 255, 0.14);
-  --input: rgba(255, 255, 255, 0.24);
+  --border: rgba(255, 255, 255, 0.09);
+  --input: rgba(255, 255, 255, 0.16);
   --ring: #ffffff;
   --chart-1: #a78bfa;
   --chart-2: #ffffff;
   --chart-3: #8a8a8a;
   --chart-4: #4ade80;
   --chart-5: #fbbf24;
-  --sidebar: #000000;
+  --sidebar: #0a0a0a;
   --sidebar-foreground: #ffffff;
   --sidebar-primary: #ffffff;
-  --sidebar-primary-foreground: #000000;
-  --sidebar-accent: #1a1a1a;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #1c1c1c;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.12);
+  --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #ffffff;
   --severity-critical: #ff6b6b;
   --severity-high: #ffa657;

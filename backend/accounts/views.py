@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status
@@ -11,7 +11,12 @@ from rest_framework.views import APIView
 
 from invites.models import AccessRequest
 
-from .serializers import RegisterSerializer, UserSerializer
+from .serializers import (
+    ChangePasswordSerializer,
+    ProfileUpdateSerializer,
+    RegisterSerializer,
+    UserSerializer,
+)
 
 
 @method_decorator(ensure_csrf_cookie, name="get")
@@ -57,10 +62,26 @@ def logout_view(request):
     return Response({"detail": "ok"})
 
 
-@api_view(["GET"])
+@api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def me(request):
+    """Read the current user, or PATCH editable profile fields (email, name)."""
+    if request.method == "PATCH":
+        ser = ProfileUpdateSerializer(request.user, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
     return Response(UserSerializer(request.user).data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """Change the current user's password, verifying the current one first."""
+    ser = ChangePasswordSerializer(data=request.data, context={"request": request})
+    ser.is_valid(raise_exception=True)
+    ser.save()
+    update_session_auth_hash(request, request.user)  # keep this session signed in
+    return Response({"detail": "Password updated."})
 
 
 @api_view(["POST"])

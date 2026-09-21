@@ -1,10 +1,10 @@
 """The tool layer — one registry, executed INSIDE the per-scan container.
 
-The core tool is ``run_command``: the model (or a scripted playbook) runs shell
-commands in the Kali sandbox — nmap, curl, sqlmap, nikto, gobuster, or grepping
-the target's source under ``/workspace`` — and the stdout/exit code come back as
-the next observation. ``report_finding`` files a validated issue; ``finish`` ends
-the agent. The same registry backs both the LLM loop and the scripted playbook.
+The core tool is ``run_command``: the model runs shell commands in the Kali
+sandbox — nmap, curl, sqlmap, nikto, gobuster, or grepping the target's source
+under ``/workspace`` — and the stdout/exit code come back as the next
+observation. ``report_finding`` files a validated issue; ``finish`` ends the
+agent.
 """
 
 from __future__ import annotations
@@ -46,10 +46,13 @@ class ToolContext:
     # -- the sandbox ----------------------------------------------------------
     def run(self, command: str, timeout: float = 180) -> Any:
         """Run a command in the container; log it and its result. Returns ExecResult."""
-        self.coord.emit("tool", self.agent, f"$ {command}")
+        self.coord.emit("tool", self.agent, f"$ {command}", command=command)
         res = self.sandbox.exec(command, timeout=min(int(timeout or 180), _MAX_EXEC_TIMEOUT))
         tag = "timeout" if res.timed_out else f"exit {res.exit_code}"
-        self.coord.emit("tool", self.agent, f"  → {tag}, {len(res.stdout)}b", ok=res.ok)
+        # Attach the real (truncated) output so the live log shows what came back,
+        # not just a byte count. Capped so events.jsonl stays small.
+        self.coord.emit("tool", self.agent, f"  → {tag}, {len(res.stdout)}b",
+                        ok=res.ok, command=command, output=res.combined(limit=2000))
         # Remember it as provenance for whatever finding the agent files next.
         self.last_command = command
         self.last_output = res.combined(limit=1200)
@@ -62,9 +65,9 @@ class ToolContext:
         severity = (severity or "info").lower().strip()
         if severity not in ("critical", "high", "medium", "low", "info"):
             severity = "info"
-        # Provenance: prefer what the caller passed (scripted playbooks quote the
-        # exact matched line); otherwise stamp the agent's most recent command +
-        # output, so an LLM-filed finding is still traceable to real container I/O.
+        # Provenance: prefer what the caller passed; otherwise stamp the agent's
+        # most recent command + output, so a filed finding is still traceable to
+        # real container I/O.
         command = command or self.last_command
         output = (output or self.last_output or "")[:1200]
         finding = Finding(id="", title=title, severity=severity, target=self.target,

@@ -1,0 +1,37 @@
+{% extends "reports/base.html" %}
+{% block subtitle %}OWASP Top 10 (2021) coverage{% endblock %}
+{% block body %}
+<div class="section">
+  <h2 class="sec">Coverage summary</h2>
+  <p class="prose">{{ headline }}</p>
+  {% if owasp_groups %}
+  <table>
+    <thead><tr><th>OWASP category</th><th class="num">Findings</th><th>Highest severity</th></tr></thead>
+    <tbody>
+      {% for g in owasp_groups %}
+      <tr>
+        <td>{{ g.name }}</td>
+        <td class="num">{{ g.findings|length }}</td>
+        <td><span class="chip sev-{{ g.findings.0.severity }}">{{ g.findings.0.severity }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+{% if owasp_groups %}
+  {% for g in owasp_groups %}
+  <div class="section">
+    <h2 class="sec">{{ g.name }}</h2>
+    {% for f in g.findings %}
+      {% include "reports/_finding.html" %}
+    {% endfor %}
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="section"><div class="no-findings">No findings were reported for this assessment.</div></div>
+{% endif %}
+
+<p class="disclaimer">OWASP category mapping is derived from each finding's CWE. CVSS is a representative score mapped from severity, not a computed vector. Authorized testing only — this report is confidential.</p>
+{% endblock %}

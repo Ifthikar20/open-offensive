@@ -16,7 +16,7 @@ def test_markdown_has_title_and_every_finding(scanned):
     assert md.startswith("# OpenOffensive")
     assert "Penetration Test Report" in md
     assert f"**Target:** {scanned.target}" in md
-    assert "**Mode:** scripted" in md
+    assert "**Mode:** llm" in md
     for f in scanned.coord.findings:
         assert f.title in md
         # each finding renders its severity/CVSS heading

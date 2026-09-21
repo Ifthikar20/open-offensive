@@ -13,7 +13,7 @@ class ScanListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Scan
         fields = (
-            "id", "target", "mode", "status", "exit_code",
+            "id", "target", "mode", "status", "exit_code", "error",
             "finding_count", "summary",
             "created_at", "started_at", "finished_at",
         )
@@ -41,4 +41,7 @@ class ScanSerializer(serializers.ModelSerializer):
         )
 
     def validate_target(self, value: str) -> str:
-        return value.strip()
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError("A target is required.")
+        return value

@@ -1,18 +1,52 @@
 <script setup>
+import { ref, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { Sun, Moon, Monitor, Check } from '@lucide/vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
 
 const app = useAppStore()
 const auth = useAuthStore()
+const router = useRouter()
 
 const THEMES = [
   { value: 'system', label: 'System', icon: Monitor },
   { value: 'light', label: 'Light', icon: Sun },
   { value: 'dark', label: 'Dark', icon: Moon },
 ]
+
+const pw = reactive({ current_password: '', new_password: '', confirm: '' })
+const changing = ref(false)
+const changed = ref(false)
+const pwError = ref('')
+
+async function changePassword() {
+  pwError.value = ''
+  changed.value = false
+  if (pw.new_password !== pw.confirm) {
+    pwError.value = "New password and confirmation don't match."
+    return
+  }
+  changing.value = true
+  try {
+    await auth.changePassword({
+      current_password: pw.current_password,
+      new_password: pw.new_password,
+    })
+    changed.value = true
+    pw.current_password = pw.new_password = pw.confirm = ''
+  } catch (e) {
+    pwError.value = e?.displayMessage || 'Could not change your password.'
+  } finally {
+    changing.value = false
+  }
+}
 </script>
 
 <template>
@@ -66,6 +100,41 @@ const THEMES = [
           <span class="font-medium">{{ auth.user?.email || '—' }}</span>
         </div>
       </CardContent>
+      <CardFooter>
+        <Button variant="outline" size="sm" @click="router.push({ name: 'profile' })">
+          Edit profile
+        </Button>
+      </CardFooter>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Change password</CardTitle>
+        <CardDescription>Use at least 8 characters. You'll stay signed in on this device.</CardDescription>
+      </CardHeader>
+      <form @submit.prevent="changePassword">
+        <CardContent class="grid gap-4">
+          <div class="grid gap-1.5">
+            <Label for="cur">Current password</Label>
+            <Input id="cur" v-model="pw.current_password" type="password" autocomplete="current-password" required />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="new">New password</Label>
+            <Input id="new" v-model="pw.new_password" type="password" autocomplete="new-password" required />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="cfm">Confirm new password</Label>
+            <Input id="cfm" v-model="pw.confirm" type="password" autocomplete="new-password" required />
+          </div>
+          <Alert v-if="pwError" variant="destructive">
+            <AlertDescription>{{ pwError }}</AlertDescription>
+          </Alert>
+          <p v-else-if="changed" class="text-sm text-[color:var(--color-success)]">Password updated.</p>
+        </CardContent>
+        <CardFooter>
+          <Button type="submit" :disabled="changing">{{ changing ? 'Updating…' : 'Update password' }}</Button>
+        </CardFooter>
+      </form>
     </Card>
   </div>
 </template>

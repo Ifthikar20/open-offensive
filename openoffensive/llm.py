@@ -1,11 +1,9 @@
 """Optional LLM brain — drives one agent with Claude via a manual tool-use loop.
 
-This is what turns OpenOffensive from a scripted demo into a real agent: instead
-of following a fixed methodology, the agent asks a model what to do next, the
-model calls tools (real HTTP probes, report_finding, load_skill…), and the loop
-feeds the results back until the model calls ``finish``. Every tool call still
-flows through the shared registry, so it is logged and scope-guarded exactly like
-scripted mode.
+This is the agent's brain: the agent asks a model what to do next, the model
+calls tools (real HTTP probes, report_finding, load_skill…), and the loop feeds
+the results back until the model calls ``finish``. Every tool call flows through
+the shared registry, so it is logged and scope-guarded.
 
 The ``anthropic`` SDK is imported lazily so the package installs and runs with no
 dependencies; LLM mode needs ``pip install 'openoffensive[llm]'`` and an
@@ -85,6 +83,29 @@ def _cost(model: str, usage: Any) -> float:
     return it / 1_000_000 * pin + ot / 1_000_000 * pout
 
 
+# Models that take adaptive thinking + an effort level (not a fixed token budget).
+_ADAPTIVE_THINKING = ("opus-5", "opus-4-8", "opus-4-7", "opus-4-6",
+                      "sonnet-5", "sonnet-4-6", "fable-5", "mythos-5")
+
+
+def _thinking_params(model: str, settings: Any) -> dict[str, Any]:
+    """Extended-thinking request kwargs for this model.
+
+    Current models (Opus/Sonnet/Fable) use adaptive thinking + an ``effort`` level —
+    ``budget_tokens`` is rejected there with a 400. Older models (Haiku/legacy) still
+    take a fixed ``budget_tokens``. ``display="summarized"`` returns the model's
+    readable reasoning (the default omits it) — that's what the live log surfaces.
+    """
+    display = "summarized" if getattr(settings, "thinking_display", True) else "omitted"
+    if any(m in model for m in _ADAPTIVE_THINKING):
+        return {
+            "thinking": {"type": "adaptive", "display": display},
+            "output_config": {"effort": getattr(settings, "effort", "high")},
+        }
+    budget = max(1024, int(getattr(settings, "thinking_budget", 2048)))
+    return {"thinking": {"type": "enabled", "budget_tokens": budget}}
+
+
 def run_agent_llm(ctx: ToolContext, *, system_prompt: str, task: str,
                   tool_names: list[str], settings: Any) -> None:
     """Run one agent to completion under model control. Raises LLMUnavailable if
@@ -97,15 +118,20 @@ def run_agent_llm(ctx: ToolContext, *, system_prompt: str, task: str,
     client = _make_client(settings)
     model = settings.model
     tools = anthropic_schemas(tool_names)
+    think = _thinking_params(model, settings)
+    # Budget-mode thinking requires max_tokens > budget_tokens; give headroom.
+    _budget = think.get("thinking", {}).get("budget_tokens")
+    max_tokens = max(settings.max_tokens, _budget + 1024) if _budget else settings.max_tokens
     messages: list[dict[str, Any]] = [{"role": "user", "content": task}]
 
     for _step in range(settings.max_steps):
         resp = client.messages.create(
             model=model,
-            max_tokens=settings.max_tokens,
+            max_tokens=max_tokens,
             system=system_prompt,
             tools=tools,
             messages=messages,
+            **think,
         )
         ctx.coord.bill(ctx.agent, turns=1, cost=_cost(model, resp.usage))
 
@@ -118,7 +144,11 @@ def run_agent_llm(ctx: ToolContext, *, system_prompt: str, task: str,
         tool_results: list[dict[str, Any]] = []
         for block in resp.content:
             btype = getattr(block, "type", None)
-            if btype == "text" and block.text.strip():
+            if btype == "thinking":
+                reasoning = (getattr(block, "thinking", "") or "").strip()
+                if reasoning:
+                    ctx.coord.emit("think", ctx.agent, reasoning, reasoning=True)
+            elif btype == "text" and block.text.strip():
                 ctx.coord.emit("think", ctx.agent, block.text.strip())
             elif btype == "tool_use":
                 observation = execute(ctx, block.name, dict(block.input or {}))

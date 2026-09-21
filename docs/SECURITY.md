@@ -3,8 +3,8 @@
 > **Authorized testing only.** OpenOffensive runs real pentest tools against whatever target
 > it is pointed at. Only use it against systems you **own** or have **explicit, written
 > permission** to test. Unauthorized scanning of computer systems is illegal in most
-> jurisdictions. Out of the box it tests only its own bundled demo app; pointing it at a live
-> host anywhere else is a deliberate, accountable act.
+> jurisdictions. Every scan requires an explicit target you name; pointing it at a live host is
+> a deliberate, accountable act.
 
 This page describes the safety model that backs that warning — the mechanisms in the code, not
 just good intentions.
@@ -56,10 +56,11 @@ treated as a real system that requires you to affirm authorization. The gate app
 attacked over the network, so it is not gated. `--authorized` is not a bypass — it is you going
 on record that you have permission for that target. Use it only when that is true.
 
-### 4. The scripted methodology sends only benign probes
+### 4. The agents send benign, confirmatory probes
 
-The default scripted methodology runs real commands, but they are deliberately
-non-destructive — minimal, confirmatory signals, not exploits:
+The agents are instructed to confirm each issue from real output rather than exploit it, so the
+commands they run are deliberately non-destructive — minimal, confirmatory signals, not exploits.
+Typical probes:
 
 | Check | Command in the container | Why it is safe |
 | --- | --- | --- |
@@ -69,28 +70,10 @@ non-destructive — minimal, confirmatory signals, not exploits:
 | IDOR | `curl` sequential ids `1`, `2`, `3` on an API path | Reads whether records return without auth; changes nothing. |
 | Headers | Inspects response headers | Read-only. |
 
-OpenOffensive does not weaponize findings, pivot, escalate, persist, or attempt
-denial-of-service in scripted mode. In LLM mode the model chooses the commands within the same
-tool set and the same in-scope instruction; the container boundary and the `--authorized` gate
-apply either way.
-
-## The bundled demo target
-
-The default target is **Juice-Box** (`demo_target.py`) — a deliberately vulnerable demo app
-that exists only so the agents always have something safe to test. It ships textbook,
-intentional weaknesses: reflected XSS on `/search`, a leaked SQL error on `/login`, an IDOR on
-`/api/user/<id>`, a hardcoded live-style secret in `/static/app.js`, missing security headers,
-and a version-disclosing server banner.
-
-Because the scan runs inside a container, the demo has to be reachable **from** that container.
-So when you run `openoffensive scan` (no target) or `openoffensive serve`, OpenOffensive binds
-Juice-Box to `0.0.0.0` on the host and points the scan at `http://host.docker.internal:<port>`
-so the container can reach it.
-
-> **Never deploy Juice-Box.** It is vulnerable **on purpose**, and during a scan it is bound to
-> all interfaces on the host so the container can reach it. Run it only on a machine you trust
-> and control, as a throwaway practice target — never on anything reachable from an untrusted
-> network. It is a practice target, not a component you run anywhere reachable.
+The model chooses the exact commands within that tool set, and its system prompt tells it to
+confirm from real output and never to weaponize findings, pivot, escalate, persist, or attempt
+denial-of-service. That is guidance, not a hard jail: the enforced limits are the container
+boundary and the `--authorized` gate, and they apply to every command it runs.
 
 ## Trusting the Docker daemon
 
@@ -110,14 +93,12 @@ a directory in, and `docker exec` every command. That means:
 ## Handling run artifacts
 
 Findings capture **evidence from real command output**, which can include sensitive material —
-the demo's leaked API tokens and secret key are the obvious case, and a real authorized target
-could yield credentials, tokens, or PII in the evidence and PoC fields. That evidence is
-written to disk under the runs directory (`run.json`, `findings.json`, `findings.sarif`,
-`report.md`, `events.jsonl`).
+a real authorized target could yield credentials, tokens, or PII in the evidence and PoC fields.
+That evidence is written to disk under the runs directory (`run.json`, `findings.json`,
+`findings.sarif`, `report.md`, `events.jsonl`).
 
 - Treat `runs/` as potentially sensitive. It is git-ignored by default; keep it that way.
-- Rotate or revoke any real secret a scan surfaces, exactly as a finding's remediation says
-  (the demo's critical finding literally advises revoking the key).
+- Rotate or revoke any real secret a scan surfaces, exactly as a finding's remediation says.
 - Be deliberate about where you upload SARIF and reports in CI.
 
 ## Responsible use, in short
@@ -125,7 +106,6 @@ written to disk under the runs directory (`run.json`, `findings.json`, `findings
 - Point it only at systems you own or are contracted/authorized in writing to test.
 - Run it only where you trust the Docker daemon and the network the sandbox container sits on.
 - Reserve `--authorized` for live targets you truly have permission to test.
-- Do not deploy the demo target, and remember it binds to `0.0.0.0` during a scan.
 - Handle findings and artifacts as the sensitive security data they are.
 
 ## Reporting a vulnerability in OpenOffensive itself

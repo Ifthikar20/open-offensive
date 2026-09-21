@@ -1,16 +1,10 @@
 """The agents — a root orchestrator that delegates to specialist sub-agents, all
 sharing ONE Kali sandbox container.
 
-Each specialist runs in one of two ways, chosen per scan by the runner:
-
-* **llm** — a real model drives the specialist: it decides which ``run_command``
-  to issue inside the container, reads the output, and repeats until it calls
-  ``finish``. This is the true agentic loop.
-* **scripted** — a fixed playbook of real ``run_command``s in the container
-  (no API key needed), so a run still spins a container and runs real tools.
-
-Either way it's the same shared container, the same tools, the same findings
-store, and the same live log.
+Each specialist is driven by a real model: it decides which ``run_command`` to
+issue inside the container, reads the real output, and repeats until it calls
+``finish`` — the true agentic loop. They share the same container, the same
+tools, the same findings store, and the same live log.
 """
 
 from __future__ import annotations
@@ -19,7 +13,7 @@ import threading
 import uuid
 
 from .coordinator import Coordinator
-from .llm import LLMUnavailable, run_agent_llm
+from .llm import run_agent_llm
 from .models import AgentState
 from .tools import ToolContext
 
@@ -47,12 +41,6 @@ _COMMON_SYSTEM = (
 
 def _aid() -> str:
     return uuid.uuid4().hex[:8]
-
-
-def _matching(text: str, *needles: str, limit: int = 4) -> str:
-    """The real output lines that contain any needle — a finding's raw proof."""
-    hits = [ln.rstrip() for ln in text.splitlines() if any(n in ln for n in needles)]
-    return "\n".join(hits[:limit])
 
 
 class BaseAgent:
@@ -126,116 +114,31 @@ class BaseAgent:
             self.coord.set_status(self.state, "stopped", "stopped after error")
 
     def work(self) -> None:
-        if self.coord.mode == "llm":
-            try:
-                run_agent_llm(self.ctx, system_prompt=self.system_prompt(),
-                              task=self.task_prompt(), tool_names=_TOOLS, settings=self.settings)
-                return
-            except LLMUnavailable as e:
-                self.coord.emit("error", self.state, f"LLM unavailable ({e}); using scripted mode")
-        self.scripted()
-
-    def scripted(self) -> None:  # overridden by specialists
-        raise NotImplementedError
-
-    # -- scripted helpers -----------------------------------------------------
-    def _file(self, **kw) -> None:
-        self.ctx.report(**kw)
+        # A real model drives every specialist. If the model becomes unreachable
+        # mid-run, LLMUnavailable propagates out of run() and the agent is marked
+        # "stopped" (a crash) — it never falls back to canned or scripted output.
+        run_agent_llm(self.ctx, system_prompt=self.system_prompt(),
+                      task=self.task_prompt(), tool_names=_TOOLS, settings=self.settings)
 
 
 # ---------------------------------------------------------------------------
-# Specialists (scripted playbooks run REAL commands in the container)
+# Specialists — each a model-driven agent with a focused mandate. The role/focus
+# shape the agent graph and the model's system + task prompts.
 # ---------------------------------------------------------------------------
 class ReconAgent(BaseAgent):
     role = "recon"
     focus = ("Map the attack surface: fingerprint the server, fetch key endpoints and "
              "static assets, grep any source for leaked secrets, and check security headers.")
 
-    def scripted(self) -> None:
-        self.ctx.phase("Reconnaissance — mapping the attack surface")
-        home_cmd = f"curl -s -i {self.target}/"
-        home = self.ctx.run(home_cmd)
-        banner = ""
-        for line in home.stdout.splitlines():
-            if line.lower().startswith("server:"):
-                banner = line.strip()
-        if banner:
-            self._file(title="Server version disclosure", severity="info", endpoint="/",
-                       evidence=f"Server header reveals '{banner.split(':', 1)[1].strip()}'.",
-                       remediation="Suppress or genericise the Server header.", cwe="CWE-200",
-                       command=home_cmd, output=banner)
-        js_cmd = f"curl -s {self.target}/static/app.js"
-        js = self.ctx.run(js_cmd)
-        leak = _matching(js.stdout, "sk_live_")
-        if leak:
-            self._file(title="Hardcoded live secret key in client bundle", severity="critical",
-                       endpoint="/static/app.js",
-                       evidence="Client-served JS embeds a live sk_live_ key.",
-                       remediation="Revoke the key; move secrets server-side.", cwe="CWE-798",
-                       poc="curl -s $TARGET/static/app.js | grep sk_live_",
-                       command=js_cmd, output=leak)
-        if self.workspace_path:
-            grep_cmd = f"grep -rEn 'sk_live_|api_key|password' {self.workspace_path} | head -20"
-            grep = self.ctx.run(grep_cmd)
-            if grep.stdout.strip():
-                self._file(title="Secrets in source", severity="high", endpoint=self.workspace_path,
-                           evidence="grep found credential-like strings in the source.",
-                           remediation="Remove secrets from source; rotate them.", cwe="CWE-798",
-                           command=grep_cmd, output=grep.stdout[:800])
-        headers = home.stdout.lower()
-        missing = [h for h in ("content-security-policy", "x-frame-options",
-                               "x-content-type-options") if h not in headers]
-        if missing:
-            hdr_block = home.stdout.split("\r\n\r\n", 1)[0].split("\n\n", 1)[0]
-            self._file(title="Missing security headers", severity="low", endpoint="/",
-                       evidence="Absent: " + ", ".join(missing),
-                       remediation="Add CSP, X-Frame-Options, X-Content-Type-Options.", cwe="CWE-693",
-                       command=home_cmd, output=hdr_block[:600])
-
 
 class InjectionAgent(BaseAgent):
     role = "injection"
     focus = "Test input handling: SQL injection on login-style endpoints and reflected XSS."
 
-    def scripted(self) -> None:
-        self.ctx.phase("Injection testing — SQLi & XSS")
-        sqli_cmd = f"curl -s -i \"{self.target}/login?user=admin%27&pass=x\""
-        sqli = self.ctx.run(sqli_cmd)
-        err = _matching(sqli.stdout, "SQL", "SQLException", "SQLite", "syntax error")
-        if err:
-            self._file(title="Error-based SQL injection", severity="high", endpoint="/login",
-                       evidence="A single quote triggers a raw SQL error in the response.",
-                       remediation="Use parameterised queries; never concatenate input into SQL.",
-                       cwe="CWE-89", poc="curl -s \"$TARGET/login?user=admin%27&pass=x\"",
-                       command=sqli_cmd, output=err)
-        xss_cmd = f"curl -s \"{self.target}/search?q=<script>xss1()</script>\""
-        xss = self.ctx.run(xss_cmd)
-        if "<script>xss1()</script>" in xss.stdout:
-            self._file(title="Reflected cross-site scripting (XSS)", severity="medium",
-                       endpoint="/search",
-                       evidence="The q parameter is reflected un-encoded into the HTML body.",
-                       remediation="Context-encode output; add a strict CSP.", cwe="CWE-79",
-                       poc="open \"$TARGET/search?q=<script>alert(1)</script>\"",
-                       command=xss_cmd,
-                       output=_matching(xss.stdout, "<script>xss1()</script>") or xss.stdout[:200])
-
 
 class AccessAgent(BaseAgent):
     role = "access"
     focus = "Test object-level authorization: walk sequential API ids without auth (IDOR/BOLA)."
-
-    def scripted(self) -> None:
-        self.ctx.phase("Access control — object-level authorization")
-        walk_cmd = f"for i in 1 2 3; do curl -s {self.target}/api/user/$i; echo; done"
-        walk = self.ctx.run(walk_cmd)
-        if walk.stdout.count("api_token") > 1:
-            self._file(title="IDOR — unauthenticated access to any user record", severity="high",
-                       endpoint="/api/user/{id}",
-                       evidence="Records for several ids returned without auth, each exposing "
-                                "another user's email and api_token.",
-                       remediation="Enforce authentication and an ownership check on every lookup.",
-                       cwe="CWE-639", poc="for i in 1 2 3; do curl -s $TARGET/api/user/$i; done",
-                       command=walk_cmd, output=walk.stdout[:400])
 
 
 SPECIALISTS: list[tuple[str, type[BaseAgent], list[str]]] = [

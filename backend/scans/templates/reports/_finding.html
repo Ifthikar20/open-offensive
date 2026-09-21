@@ -1,0 +1,18 @@
+<article class="finding">
+  <div class="fhead">
+    <span class="chip sev-{{ f.severity }}">{{ f.severity }}{% if f.cvss %} · CVSS {{ f.cvss }}{% endif %}</span>
+    <span class="fid">{{ f.id }}{% if f.cwe %} · {{ f.cwe }}{% endif %}</span>
+  </div>
+  <h3>{{ f.title }}</h3>
+  {% if f.endpoint or f.target or f.agent %}
+  <div class="meta">
+    {% if f.endpoint or f.target %}<span class="k">location</span> {{ f.endpoint|default:f.target }}{% endif %}
+    {% if f.agent %} &nbsp;·&nbsp; <span class="k">found by</span> {{ f.agent }}{% endif %}
+  </div>
+  {% endif %}
+  {% if f.evidence %}<div class="flabel">Evidence</div><p class="prose">{{ f.evidence }}</p>{% endif %}
+  {% if f.command %}<div class="flabel">Command</div><pre class="code">{{ f.command }}</pre>{% endif %}
+  {% if f.output %}<div class="flabel">Output</div><pre class="code">{{ f.output }}</pre>{% endif %}
+  {% if f.poc %}<div class="flabel">Proof of concept</div><pre class="code">{{ f.poc }}</pre>{% endif %}
+  {% if f.remediation %}<div class="flabel fix">Remediation</div><p class="prose">{{ f.remediation }}</p>{% endif %}
+</article>

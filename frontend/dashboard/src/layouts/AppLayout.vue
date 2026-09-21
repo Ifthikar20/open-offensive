@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { LayoutGrid, Radar, Settings, LogOut, Sun, Moon, ChevronsUpDown } from '@lucide/vue'
+import { LayoutGrid, Radar, History, User, Settings, LogOut, Sun, Moon, ChevronsUpDown } from '@lucide/vue'
 
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
@@ -53,11 +53,15 @@ const nav = [
     items: [
       { title: 'Dashboard', icon: LayoutGrid, to: '/dashboard', match: '/dashboard' },
       { title: 'Scans', icon: Radar, to: '/dashboard', match: '/scans' },
+      { title: 'History', icon: History, to: '/history', match: '/history' },
     ],
   },
   {
     label: 'Account',
-    items: [{ title: 'Settings', icon: Settings, to: '/settings', match: '/settings' }],
+    items: [
+      { title: 'Profile', icon: User, to: '/profile', match: '/profile' },
+      { title: 'Settings', icon: Settings, to: '/settings', match: '/settings' },
+    ],
   },
 ]
 
@@ -67,6 +71,8 @@ function isActive(item) {
 
 const crumb = computed(() => {
   if (route.name === 'scan-detail') return 'Scan detail'
+  if (route.name === 'scan-history') return 'Scan history'
+  if (route.name === 'profile') return 'Profile'
   if (route.name === 'settings') return 'Settings'
   return 'Dashboard'
 })
@@ -137,6 +143,10 @@ async function signOut() {
               <DropdownMenuContent align="end" side="top" class="min-w-56 rounded-lg">
                 <DropdownMenuLabel>{{ auth.user?.username }}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem @click="router.push({ name: 'profile' })">
+                  <User />
+                  Profile
+                </DropdownMenuItem>
                 <DropdownMenuItem @click="router.push({ name: 'settings' })">
                   <Settings />
                   Settings

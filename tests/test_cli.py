@@ -1,10 +1,11 @@
 """The command-line interface: exit codes, artifact writing, and the safety guard.
 
-A real scan needs Docker, which is unavailable here, so the scan tests inject a
-:class:`FakeSandbox` by monkeypatching the runner's ``docker_available`` /
-``open_sandbox`` seam (the ``no_docker`` fixture). ``doctor`` deliberately uses
+A real scan needs Docker and a model key, neither of which is available in the
+hermetic suite, so the scan tests use the ``scan_ready`` fixture: it puts a key in
+the env, injects a fake ``anthropic`` client that drives the agents, and makes the
+runner build a :class:`FakeSandbox` instead of a Docker container. ``doctor`` uses
 the real preflight and reports Docker missing. The authorization guard is checked
-to fire BEFORE any Docker/sandbox use.
+to fire BEFORE any preflight/sandbox use.
 """
 
 from __future__ import annotations
@@ -14,11 +15,12 @@ from pathlib import Path
 
 import pytest
 
-from conftest import demo_sandbox
+from conftest import install_scan_anthropic, scan_sandbox
 
 from openoffensive import cli
 
 _ARTIFACTS = ("run.json", "findings.json", "findings.sarif", "report.md", "events.jsonl")
+_LOOPBACK = "http://127.0.0.1:8123"
 
 
 def _scan_dirs(runs_dir) -> list[str]:
@@ -30,16 +32,19 @@ def _scan_dirs(runs_dir) -> list[str]:
 
 
 @pytest.fixture
-def no_docker(monkeypatch):
-    """Make the runner build an injected FakeSandbox instead of a Docker container.
-
-    ``docker_available`` is forced true and ``open_sandbox`` returns a sandbox
-    that simulates the bundled demo app, so ``scan`` completes with findings and
-    never touches a daemon.
+def scan_ready(monkeypatch):
+    """Make ``scan`` runnable in the hermetic suite: a key in the env, a fake model
+    client that drives the agents, and a FakeSandbox instead of a Docker container.
+    ``scan`` then completes with findings and never touches a daemon or the network.
     """
     import openoffensive.runner as runner
+    from openoffensive.config import reset_settings_cache
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    reset_settings_cache()                       # pick up the key we just set
+    install_scan_anthropic(monkeypatch)
     monkeypatch.setattr(runner, "docker_available", lambda: (True, ""))
-    monkeypatch.setattr(runner, "open_sandbox", lambda *a, **k: demo_sandbox())
+    monkeypatch.setattr(runner, "open_sandbox", lambda *a, **k: scan_sandbox())
 
 
 # ---------------------------------------------------------------------------
@@ -60,15 +65,20 @@ def test_no_subcommand_is_an_error():
     assert exc.value.code != 0
 
 
+def test_scan_requires_a_target():
+    # A target is mandatory now — there is no bundled demo default.
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["scan"])
+    assert exc.value.code != 0
+
+
 # ---------------------------------------------------------------------------
-# scan (through the injected sandbox — no Docker)
+# scan (through the injected fake model + sandbox — no Docker, no network)
 # ---------------------------------------------------------------------------
-def test_scan_bundled_demo_returns_findings_and_writes_artifacts(no_docker, tmp_path, capsys):
+def test_scan_returns_findings_and_writes_artifacts(scan_ready, tmp_path, capsys):
     runs = tmp_path / "runs"
-    # No key in the hermetic suite, so drive the no-key demo playbook explicitly;
-    # LLM is the default and would (correctly) error without a key.
-    rc = cli.main(["scan", "--mode", "scripted", "--runs-dir", str(runs)])
-    assert rc == 2  # bundled demo is vulnerable → findings present
+    rc = cli.main(["scan", _LOOPBACK, "--runs-dir", str(runs)])
+    assert rc == 2  # findings present → exit 2
 
     dirs = _scan_dirs(runs)
     assert len(dirs) == 1
@@ -77,21 +87,19 @@ def test_scan_bundled_demo_returns_findings_and_writes_artifacts(no_docker, tmp_
         assert (run_dir / name).exists(), name
 
     out = capsys.readouterr().out
-    assert "bundled demo app" in out
     assert "Report:" in out
 
 
-def test_scan_explicit_loopback_target(no_docker, tmp_path):
+def test_scan_explicit_loopback_target(scan_ready, tmp_path):
     runs = tmp_path / "runs"
-    rc = cli.main(["scan", "http://127.0.0.1:8123", "--mode", "scripted",
-                   "--runs-dir", str(runs)])
+    rc = cli.main(["scan", _LOOPBACK, "--runs-dir", str(runs)])
     assert rc == 2
     assert len(_scan_dirs(runs)) == 1
 
 
 def test_scan_non_loopback_without_authorization_refuses(tmp_path, capsys):
     runs = tmp_path / "runs"
-    # Must return 1 BEFORE any scan/sandbox activity (no no_docker fixture here).
+    # Must return 1 BEFORE any preflight/sandbox activity.
     rc = cli.main(["scan", "http://example.com", "--runs-dir", str(runs)])
     assert rc == 1
     err = capsys.readouterr().err
@@ -100,24 +108,23 @@ def test_scan_non_loopback_without_authorization_refuses(tmp_path, capsys):
     assert _scan_dirs(runs) == []
 
 
-def test_scan_without_key_errors_instead_of_silent_scripted(no_docker, tmp_path, capsys):
-    # LLM is the default mode; with no ANTHROPIC_API_KEY the scan must fail loudly
-    # (status error, exit 1) rather than silently degrading to scripted.
+def test_scan_without_key_errors(tmp_path, capsys):
+    # No ANTHROPIC_API_KEY: the scan must fail loudly at preflight (exit 1) rather
+    # than silently degrading to any canned/scripted run.
     runs = tmp_path / "runs"
-    rc = cli.main(["scan", "--runs-dir", str(runs)])
+    rc = cli.main(["scan", _LOOPBACK, "--runs-dir", str(runs)])
     assert rc == 1
     combined = capsys.readouterr()
     text = combined.out + combined.err
     assert "ANTHROPIC_API_KEY" in text or "unreachable" in text
 
 
-def test_scan_scripted_mode_override(no_docker, tmp_path):
+def test_scan_writes_llm_mode_in_run_record(scan_ready, tmp_path):
     runs = tmp_path / "runs"
-    rc = cli.main(["scan", "--mode", "scripted", "--runs-dir", str(runs)])
-    assert rc == 2
+    cli.main(["scan", _LOOPBACK, "--runs-dir", str(runs)])
     run_dir = runs / _scan_dirs(runs)[0]
     rec = json.loads((run_dir / "run.json").read_text())
-    assert rec["mode"] == "scripted"
+    assert rec["mode"] == "llm"
 
 
 # ---------------------------------------------------------------------------
@@ -227,9 +234,9 @@ def test_list_empty_returns_zero(tmp_path, capsys):
     assert "No runs yet" in capsys.readouterr().out
 
 
-def test_list_after_scan_shows_the_run(no_docker, tmp_path, capsys):
+def test_list_after_scan_shows_the_run(scan_ready, tmp_path, capsys):
     runs = tmp_path / "runs"
-    cli.main(["scan", "--mode", "scripted", "--runs-dir", str(runs)])
+    cli.main(["scan", _LOOPBACK, "--runs-dir", str(runs)])
     capsys.readouterr()  # drop scan output
 
     rc = cli.main(["list", "--runs-dir", str(runs)])
@@ -238,15 +245,15 @@ def test_list_after_scan_shows_the_run(no_docker, tmp_path, capsys):
     scan_id = _scan_dirs(runs)[0]
     assert scan_id in out
     assert "done" in out
-    assert "scripted" in out
+    assert "llm" in out
 
 
 # ---------------------------------------------------------------------------
 # report
 # ---------------------------------------------------------------------------
-def test_report_prints_markdown_after_scan(no_docker, tmp_path, capsys):
+def test_report_prints_markdown_after_scan(scan_ready, tmp_path, capsys):
     runs = tmp_path / "runs"
-    cli.main(["scan", "--runs-dir", str(runs)])
+    cli.main(["scan", _LOOPBACK, "--runs-dir", str(runs)])
     capsys.readouterr()
     scan_id = _scan_dirs(runs)[0]
 

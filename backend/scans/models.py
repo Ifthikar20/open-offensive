@@ -11,13 +11,13 @@ class Scan(models.Model):
         ("done", "done"),
         ("error", "error"),
     )
-    MODE = (("auto", "auto"), ("llm", "llm"), ("scripted", "scripted"))
+    MODE = (("llm", "llm"),)
 
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="scans"
     )
-    target = models.CharField(max_length=500, blank=True, help_text="Repo URL, live URL, or blank for the demo.")
-    mode = models.CharField(max_length=12, choices=MODE, default="auto")
+    target = models.CharField(max_length=500, help_text="Repo URL, live URL/host, or a local dir.")
+    mode = models.CharField(max_length=12, choices=MODE, default="llm")
 
     status = models.CharField(max_length=12, choices=STATUS, default="queued", db_index=True)
     engine_scan_id = models.CharField(max_length=64, blank=True)
@@ -36,7 +36,7 @@ class Scan(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
-        return f"Scan #{self.pk} {self.target or 'demo'} [{self.status}]"
+        return f"Scan #{self.pk} {self.target} [{self.status}]"
 
     @property
     def finding_count(self) -> int:

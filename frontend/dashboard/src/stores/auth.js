@@ -33,6 +33,16 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = null
     }
   }
+  async function updateProfile(payload) {
+    user.value = (await authApi.updateProfile(payload)).data
+    return user.value
+  }
+  async function changePassword(payload) {
+    await authApi.changePassword(payload)
+  }
 
-  return { user, ready, isAuthenticated, bootstrap, login, register, logout }
+  return {
+    user, ready, isAuthenticated,
+    bootstrap, login, register, logout, updateProfile, changePassword,
+  }
 })

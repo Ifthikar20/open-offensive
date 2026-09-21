@@ -139,8 +139,8 @@ def test_report_finding_auto_attaches_last_command_as_provenance():
 
 
 def test_report_finding_keeps_explicit_provenance():
-    # When a scripted playbook passes command/output explicitly, they win over the
-    # last-command fallback (a finding can quote a command run earlier).
+    # When a caller passes command/output explicitly, they win over the last-command
+    # fallback (a finding can quote a command run earlier).
     coord = Coordinator("http://t")
     sandbox = FakeSandbox(default=("later output", 0))
     ctx = tool_ctx(coord, sandbox=sandbox, target="http://t")

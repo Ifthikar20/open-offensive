@@ -1,0 +1,25 @@
+{% extends "reports/base.html" %}
+{% block subtitle %}Manual ethical-hacking / technical assessment{% endblock %}
+{% block body %}
+<div class="section">
+  <h2 class="sec">Summary</h2>
+  <p class="prose">{{ headline }}</p>
+  {% include "reports/_severity_bars.html" %}
+</div>
+
+<div class="section">
+  <h2 class="sec">Methodology</h2>
+  <p class="prose">A root orchestrator delegated to specialist agents — reconnaissance, injection, and access-control — working inside an isolated sandbox against <b>{{ scan.target }}</b>. Each agent ran real tools and filed a finding only from real, captured output. Every finding below records the exact command run and the raw output it was drawn from, so it can be independently reproduced.</p>
+</div>
+
+<div class="section">
+  <h2 class="sec">Findings ({{ total }})</h2>
+  {% for f in findings %}
+    {% include "reports/_finding.html" %}
+  {% empty %}
+    <div class="no-findings">No findings were reported for this assessment.</div>
+  {% endfor %}
+</div>
+
+<p class="disclaimer">CVSS is a representative score mapped from severity, not a computed vector. Authorized testing only — this report is confidential.</p>
+{% endblock %}

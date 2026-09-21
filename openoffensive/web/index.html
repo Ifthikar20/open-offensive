@@ -188,8 +188,6 @@
   .pagehead h1{margin:0;font-size:22px;font-weight:700;letter-spacing:-.02em;text-wrap:balance}
   .pagehead p{margin:3px 0 0;font-size:13px;color:var(--muted)}
   .pagehead p .mono{font-size:12px}
-  .pagehead .demonote{margin-top:11px;font-size:12px;line-height:1.6;color:var(--muted);background:var(--accent-tint);border:1px solid var(--border);border-radius:10px;padding:9px 13px}
-  .pagehead .demonote b{color:var(--ink);font-weight:600}
 
   /* --- KPI tiles --- */
   .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
@@ -350,13 +348,6 @@
   .modal h3 .x{margin-left:auto;border:none;background:none;color:var(--muted);font-size:20px;line-height:1}
   .modal h3 .x:hover{color:var(--ink)}
   .modal pre{margin:0;padding:18px;overflow:auto;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.65;color:var(--ink);white-space:pre-wrap}
-
-  .demoflag{
-    display:none;align-items:center;gap:7px;font-size:11px;color:var(--muted);
-    background:var(--accent-tint);border:1px solid var(--border);border-radius:999px;padding:3px 11px
-  }
-  .demoflag.show{display:inline-flex}
-  .demoflag .d{width:6px;height:6px;border-radius:50%;background:var(--accent)}
 </style>
 </head>
 <body>
@@ -389,7 +380,7 @@
     <div class="sidefoot">
       <div class="sf-row">
         <span class="modechip" id="modechip" title="how agents decide, and whether Docker is ready">
-          <span class="dk" id="docker-dot"></span><b id="mode-name">scripted</b><span class="lbl" id="model-name"></span>
+          <span class="dk" id="docker-dot"></span><b id="mode-name">llm</b><span class="lbl" id="model-name"></span>
         </span>
       </div>
       <div class="sf-row">
@@ -408,7 +399,6 @@
     <header class="topbar">
       <div class="crumbs"><span>OpenOffensive</span><span class="sep">/</span><b id="crumb-view">Dashboard</b></div>
       <span class="targetpill mono"><span class="k">target</span><b id="target">—</b></span>
-      <span class="demoflag mono" id="demoflag" title="A simulated run — the engine's real logic against canned tool output. No container was spun and no site was contacted."><span class="d"></span>sample data</span>
       <span class="spacer"></span>
       <span class="statuspill" id="status"><span class="d"></span><span id="status-t">idle</span></span>
       <button class="runbtn" id="run">
@@ -424,7 +414,6 @@
         <div class="pagehead">
           <h1 id="greeting">Security overview</h1>
           <p>Live multi-agent penetration test of <span class="mono" id="ph-target">the target</span>. Every agent action streams below in real time.</p>
-          <p class="demonote" id="demonote" hidden><b>Sample run.</b> This is the engine's real multi-agent logic driven by <b>canned tool output</b> — no container was spun and no site was contacted. On a machine with Docker, <span class="mono">openoffensive scan</span> runs these same agents <b>inside a Kali container</b>, executing real tools via <span class="mono">docker exec</span> against the bundled Juice-Box demo app (or a repo/URL you name). Expand any finding to see the exact command and raw output it was drawn from.</p>
         </div>
 
         <div class="kpis">
@@ -492,732 +481,6 @@
   </div>
 </div>
 
-<script id="seed" type="application/json">{
-  "target": "http://host.docker.internal:8000",
-  "mode": "scripted",
-  "model": "claude-opus-5",
-  "turns": 0,
-  "cost": 0.0,
-  "status": "done",
-  "events": [
-    {
-      "seq": 1,
-      "ts": 1788488681.8057506,
-      "level": "system",
-      "agent_id": "system",
-      "agent": "system",
-      "role": "system",
-      "message": "scan started against http://host.docker.internal:8000  [mode: scripted]",
-      "data": {}
-    },
-    {
-      "seq": 2,
-      "ts": 1788488681.8059099,
-      "level": "graph",
-      "agent_id": "542d5bda",
-      "agent": "Root Orchestrator",
-      "role": "root",
-      "message": "spawned :: pentest http://host.docker.internal:8000",
-      "data": {
-        "status": "spawning",
-        "parent": null,
-        "skills": [
-          "reconnaissance",
-          "severity_calibration"
-        ]
-      }
-    },
-    {
-      "seq": 3,
-      "ts": 1788488681.8059216,
-      "level": "graph",
-      "agent_id": "542d5bda",
-      "agent": "Root Orchestrator",
-      "role": "root",
-      "message": "status \u2192 running",
-      "data": {
-        "status": "running"
-      }
-    },
-    {
-      "seq": 4,
-      "ts": 1788488681.8059254,
-      "level": "phase",
-      "agent_id": "542d5bda",
-      "agent": "Root Orchestrator",
-      "role": "root",
-      "message": "Orchestration \u2014 planning the engagement",
-      "data": {}
-    },
-    {
-      "seq": 5,
-      "ts": 1788488681.8059285,
-      "level": "think",
-      "agent_id": "542d5bda",
-      "agent": "Root Orchestrator",
-      "role": "root",
-      "message": "target in scope: http://host.docker.internal:8000",
-      "data": {}
-    },
-    {
-      "seq": 6,
-      "ts": 1788488681.805931,
-      "level": "think",
-      "agent_id": "542d5bda",
-      "agent": "Root Orchestrator",
-      "role": "root",
-      "message": "delegating to specialist subagents that share the sandbox container",
-      "data": {}
-    },
-    {
-      "seq": 7,
-      "ts": 1788488681.805946,
-      "level": "graph",
-      "agent_id": "06244eee",
-      "agent": "Recon Scout",
-      "role": "recon",
-      "message": "spawned :: Map the attack surface: fingerprint the server, fetch key endpoints and static assets, grep any source for leaked secrets, and check security headers.",
-      "data": {
-        "status": "spawning",
-        "parent": "542d5bda",
-        "skills": [
-          "reconnaissance",
-          "security_headers"
-        ]
-      }
-    },
-    {
-      "seq": 8,
-      "ts": 1788488681.805952,
-      "level": "think",
-      "agent_id": "542d5bda",
-      "agent": "Root Orchestrator",
-      "role": "root",
-      "message": "create_agent \u2192 Recon Scout",
-      "data": {}
-    },
-    {
-      "seq": 9,
-      "ts": 1788488681.8063536,
-      "level": "graph",
-      "agent_id": "06244eee",
-      "agent": "Recon Scout",
-      "role": "recon",
-      "message": "status \u2192 running",
-      "data": {
-        "status": "running"
-      }
-    },
-    {
-      "seq": 10,
-      "ts": 1788488681.8063767,
-      "level": "phase",
-      "agent_id": "06244eee",
-      "agent": "Recon Scout",
-      "role": "recon",
-      "message": "Reconnaissance \u2014 mapping the attack surface",
-      "data": {}
-    },
-    {
-      "seq": 11,
-      "ts": 1788488681.8063846,
-      "level": "tool",
-      "agent_id": "06244eee",
-      "agent": "Recon Scout",
-      "role": "recon",
-      "message": "$ curl -s -i http://host.docker.internal:8000/",
-      "data": {}
-    },
-    {
-      "seq": 12,
-      "ts": 1788488681.8064144,
-      "level": "tool",
-      "agent_id": "06244eee",
-      "agent": "Recon Scout",
-      "role": "recon",
-      "message": "  \u2192 exit 0, 83b",
-      "data": {
-        "ok": true
-      }
-    },
-    {
-      "seq": 13,
-      "ts": 1788488681.8065386,
-      "level": "finding",
-      "agent_id": "06244eee",
-      "agent": "Recon Scout",
-      "role": "recon",
-      "message": "filed INFO \u2014 Server version disclosure",
-      "data": {
-        "finding": {
-          "id": "VULN-0001",
-          "title": "Server version disclosure",
-          "severity": "info",
-          "target": "http://host.docker.internal:8000",
-          "endpoint": "/",
-          "evidence": "Server header reveals 'JuiceBox/0.1'.",
-          "remediation": "Suppress or genericise the Server header.",
-          "agent": "Recon Scout",
-          "cwe": "CWE-200",
-          "poc": "",
-          "command": "curl -s -i http://host.docker.internal:8000/",
-          "output": "Server: JuiceBox/0.1",
-          "cvss": 0.0
-        }
-      }
-    },
-    {
-      "seq": 14,
-      "ts": 1788488681.8065424,
-      "level": "tool",
-      "agent_id": "06244eee",
-      "agent": "Recon Scout",
-      "role": "recon",
-      "message": "$ curl -s http://host.docker.internal:8000/static/app.js",
-      "data": {}
-    },
-    {
-      "seq": 15,
-      "ts": 1788488681.8065507,
-      "level": "tool",
-      "agent_id": "06244eee",
-      "agent": "Recon Scout",
-      "role": "recon",
-      "message": "  \u2192 exit 0, 61b",
-      "data": {
-        "ok": true
-      }
-    },
-    {
-      "seq": 16,
-      "ts": 1788488681.8065932,
-      "level": "finding",
-      "agent_id": "06244eee",
-      "agent": "Recon Scout",
-      "role": "recon",
-      "message": "filed CRITICAL \u2014 Hardcoded live secret key in client bundle",
-      "data": {
-        "finding": {
-          "id": "VULN-0002",
-          "title": "Hardcoded live secret key in client bundle",
-          "severity": "critical",
-          "target": "http://host.docker.internal:8000",
-          "endpoint": "/static/app.js",
-          "evidence": "Client-served JS embeds a live sk_live_ key.",
-          "remediation": "Revoke the key; move secrets server-side.",
-          "agent": "Recon Scout",
-          "cwe": "CWE-798",
-          "poc": "curl -s $TARGET/static/app.js | grep sk_live_",
-          "command": "curl -s http://host.docker.internal:8000/static/app.js",
-          "output": "const CONFIG={stripeKey:\"sk_live_51JbXdemoLEAKED\"};",
-          "cvss": 9.4
-        }
-      }
-    },
-    {
-      "seq": 17,
-      "ts": 1788488681.8066375,
-      "level": "finding",
-      "agent_id": "06244eee",
-      "agent": "Recon Scout",
-      "role": "recon",
-      "message": "filed LOW \u2014 Missing security headers",
-      "data": {
-        "finding": {
-          "id": "VULN-0003",
-          "title": "Missing security headers",
-          "severity": "low",
-          "target": "http://host.docker.internal:8000",
-          "endpoint": "/",
-          "evidence": "Absent: content-security-policy, x-frame-options, x-content-type-options",
-          "remediation": "Add CSP, X-Frame-Options, X-Content-Type-Options.",
-          "agent": "Recon Scout",
-          "cwe": "CWE-693",
-          "poc": "",
-          "command": "curl -s -i http://host.docker.internal:8000/",
-          "output": "HTTP/1.1 200 OK\r\nServer: JuiceBox/0.1\r\nContent-Type: text/html",
-          "cvss": 3.3
-        }
-      }
-    },
-    {
-      "seq": 18,
-      "ts": 1788488681.8066428,
-      "level": "graph",
-      "agent_id": "06244eee",
-      "agent": "Recon Scout",
-      "role": "recon",
-      "message": "agent_finish \u2192 reporting to root",
-      "data": {
-        "status": "done"
-      }
-    },
-    {
-      "seq": 19,
-      "ts": 1788488681.8069134,
-      "level": "graph",
-      "agent_id": "16f1d651",
-      "agent": "Injection Hunter",
-      "role": "injection",
-      "message": "spawned :: Test input handling: SQL injection on login-style endpoints and reflected XSS.",
-      "data": {
-        "status": "spawning",
-        "parent": "542d5bda",
-        "skills": [
-          "sql_injection",
-          "xss"
-        ]
-      }
-    },
-    {
-      "seq": 20,
-      "ts": 1788488681.8069293,
-      "level": "think",
-      "agent_id": "542d5bda",
-      "agent": "Root Orchestrator",
-      "role": "root",
-      "message": "create_agent \u2192 Injection Hunter",
-      "data": {}
-    },
-    {
-      "seq": 21,
-      "ts": 1788488681.8071568,
-      "level": "graph",
-      "agent_id": "16f1d651",
-      "agent": "Injection Hunter",
-      "role": "injection",
-      "message": "status \u2192 running",
-      "data": {
-        "status": "running"
-      }
-    },
-    {
-      "seq": 22,
-      "ts": 1788488681.8071756,
-      "level": "phase",
-      "agent_id": "16f1d651",
-      "agent": "Injection Hunter",
-      "role": "injection",
-      "message": "Injection testing \u2014 SQLi & XSS",
-      "data": {}
-    },
-    {
-      "seq": 23,
-      "ts": 1788488681.807186,
-      "level": "tool",
-      "agent_id": "16f1d651",
-      "agent": "Injection Hunter",
-      "role": "injection",
-      "message": "$ curl -s -i \"http://host.docker.internal:8000/login?user=admin%27&pass=x\"",
-      "data": {}
-    },
-    {
-      "seq": 24,
-      "ts": 1788488681.807211,
-      "level": "tool",
-      "agent_id": "16f1d651",
-      "agent": "Injection Hunter",
-      "role": "injection",
-      "message": "  \u2192 exit 0, 70b",
-      "data": {
-        "ok": true
-      }
-    },
-    {
-      "seq": 25,
-      "ts": 1788488681.8072956,
-      "level": "finding",
-      "agent_id": "16f1d651",
-      "agent": "Injection Hunter",
-      "role": "injection",
-      "message": "filed HIGH \u2014 Error-based SQL injection",
-      "data": {
-        "finding": {
-          "id": "VULN-0004",
-          "title": "Error-based SQL injection",
-          "severity": "high",
-          "target": "http://host.docker.internal:8000",
-          "endpoint": "/login",
-          "evidence": "A single quote triggers a raw SQL error in the response.",
-          "remediation": "Use parameterised queries; never concatenate input into SQL.",
-          "agent": "Injection Hunter",
-          "cwe": "CWE-89",
-          "poc": "curl -s \"$TARGET/login?user=admin%27&pass=x\"",
-          "command": "curl -s -i \"http://host.docker.internal:8000/login?user=admin%27&pass=x\"",
-          "output": "SQLite3::SQLException: unrecognized token near \"'\"",
-          "cvss": 7.8
-        }
-      }
-    },
-    {
-      "seq": 26,
-      "ts": 1788488681.807299,
-      "level": "tool",
-      "agent_id": "16f1d651",
-      "agent": "Injection Hunter",
-      "role": "injection",
-      "message": "$ curl -s \"http://host.docker.internal:8000/search?q=\u003cscript\u003exss1()\u003c/script\u003e\"",
-      "data": {}
-    },
-    {
-      "seq": 27,
-      "ts": 1788488681.807306,
-      "level": "tool",
-      "agent_id": "16f1d651",
-      "agent": "Injection Hunter",
-      "role": "injection",
-      "message": "  \u2192 exit 0, 58b",
-      "data": {
-        "ok": true
-      }
-    },
-    {
-      "seq": 28,
-      "ts": 1788488681.807337,
-      "level": "finding",
-      "agent_id": "16f1d651",
-      "agent": "Injection Hunter",
-      "role": "injection",
-      "message": "filed MEDIUM \u2014 Reflected cross-site scripting (XSS)",
-      "data": {
-        "finding": {
-          "id": "VULN-0005",
-          "title": "Reflected cross-site scripting (XSS)",
-          "severity": "medium",
-          "target": "http://host.docker.internal:8000",
-          "endpoint": "/search",
-          "evidence": "The q parameter is reflected un-encoded into the HTML body.",
-          "remediation": "Context-encode output; add a strict CSP.",
-          "agent": "Injection Hunter",
-          "cwe": "CWE-79",
-          "poc": "open \"$TARGET/search?q=\u003cscript\u003ealert(1)\u003c/script\u003e\"",
-          "command": "curl -s \"http://host.docker.internal:8000/search?q=\u003cscript\u003exss1()\u003c/script\u003e\"",
-          "output": "\u003chtml\u003e\u003ch2\u003eResults for: \u003cscript\u003exss1()\u003c/script\u003e\u003c/h2\u003e\u003c/html\u003e",
-          "cvss": 5.6
-        }
-      }
-    },
-    {
-      "seq": 29,
-      "ts": 1788488681.8073409,
-      "level": "graph",
-      "agent_id": "16f1d651",
-      "agent": "Injection Hunter",
-      "role": "injection",
-      "message": "agent_finish \u2192 reporting to root",
-      "data": {
-        "status": "done"
-      }
-    },
-    {
-      "seq": 30,
-      "ts": 1788488681.8074722,
-      "level": "graph",
-      "agent_id": "81d4304f",
-      "agent": "Access Auditor",
-      "role": "access",
-      "message": "spawned :: Test object-level authorization: walk sequential API ids without auth (IDOR/BOLA).",
-      "data": {
-        "status": "spawning",
-        "parent": "542d5bda",
-        "skills": [
-          "idor"
-        ]
-      }
-    },
-    {
-      "seq": 31,
-      "ts": 1788488681.807489,
-      "level": "think",
-      "agent_id": "542d5bda",
-      "agent": "Root Orchestrator",
-      "role": "root",
-      "message": "create_agent \u2192 Access Auditor",
-      "data": {}
-    },
-    {
-      "seq": 32,
-      "ts": 1788488681.8077216,
-      "level": "graph",
-      "agent_id": "81d4304f",
-      "agent": "Access Auditor",
-      "role": "access",
-      "message": "status \u2192 running",
-      "data": {
-        "status": "running"
-      }
-    },
-    {
-      "seq": 33,
-      "ts": 1788488681.8077362,
-      "level": "phase",
-      "agent_id": "81d4304f",
-      "agent": "Access Auditor",
-      "role": "access",
-      "message": "Access control \u2014 object-level authorization",
-      "data": {}
-    },
-    {
-      "seq": 34,
-      "ts": 1788488681.8077414,
-      "level": "tool",
-      "agent_id": "81d4304f",
-      "agent": "Access Auditor",
-      "role": "access",
-      "message": "$ for i in 1 2 3; do curl -s http://host.docker.internal:8000/api/user/$i; echo; done",
-      "data": {}
-    },
-    {
-      "seq": 35,
-      "ts": 1788488681.807757,
-      "level": "tool",
-      "agent_id": "81d4304f",
-      "agent": "Access Auditor",
-      "role": "access",
-      "message": "  \u2192 exit 0, 101b",
-      "data": {
-        "ok": true
-      }
-    },
-    {
-      "seq": 36,
-      "ts": 1788488681.8078668,
-      "level": "finding",
-      "agent_id": "81d4304f",
-      "agent": "Access Auditor",
-      "role": "access",
-      "message": "filed HIGH \u2014 IDOR \u2014 unauthenticated access to any user record",
-      "data": {
-        "finding": {
-          "id": "VULN-0006",
-          "title": "IDOR \u2014 unauthenticated access to any user record",
-          "severity": "high",
-          "target": "http://host.docker.internal:8000",
-          "endpoint": "/api/user/{id}",
-          "evidence": "Records for several ids returned without auth, each exposing another user's email and api_token.",
-          "remediation": "Enforce authentication and an ownership check on every lookup.",
-          "agent": "Access Auditor",
-          "cwe": "CWE-639",
-          "poc": "for i in 1 2 3; do curl -s $TARGET/api/user/$i; done",
-          "command": "for i in 1 2 3; do curl -s http://host.docker.internal:8000/api/user/$i; echo; done",
-          "output": "{\"id\":1,\"api_token\":\"jbx_live_a\"}\n{\"id\":2,\"api_token\":\"jbx_live_b\"}\n{\"id\":3,\"api_token\":\"jbx_live_c\"}",
-          "cvss": 7.8
-        }
-      }
-    },
-    {
-      "seq": 37,
-      "ts": 1788488681.8078752,
-      "level": "graph",
-      "agent_id": "81d4304f",
-      "agent": "Access Auditor",
-      "role": "access",
-      "message": "agent_finish \u2192 reporting to root",
-      "data": {
-        "status": "done"
-      }
-    },
-    {
-      "seq": 38,
-      "ts": 1788488681.807972,
-      "level": "graph",
-      "agent_id": "542d5bda",
-      "agent": "Root Orchestrator",
-      "role": "root",
-      "message": "wait_for_agents \u2014 specialists running",
-      "data": {
-        "status": "waiting"
-      }
-    },
-    {
-      "seq": 39,
-      "ts": 1788488681.8080006,
-      "level": "graph",
-      "agent_id": "542d5bda",
-      "agent": "Root Orchestrator",
-      "role": "root",
-      "message": "all subagents reported back",
-      "data": {
-        "status": "running"
-      }
-    },
-    {
-      "seq": 40,
-      "ts": 1788488681.8080046,
-      "level": "phase",
-      "agent_id": "542d5bda",
-      "agent": "Root Orchestrator",
-      "role": "root",
-      "message": "Aggregation \u2014 compiling the final report",
-      "data": {}
-    },
-    {
-      "seq": 41,
-      "ts": 1788488681.8080072,
-      "level": "think",
-      "agent_id": "542d5bda",
-      "agent": "Root Orchestrator",
-      "role": "root",
-      "message": "de-duplicating findings and ranking by CVSS",
-      "data": {}
-    },
-    {
-      "seq": 42,
-      "ts": 1788488681.8080254,
-      "level": "graph",
-      "agent_id": "542d5bda",
-      "agent": "Root Orchestrator",
-      "role": "root",
-      "message": "finish_scan \u2192 report written",
-      "data": {
-        "status": "done"
-      }
-    },
-    {
-      "seq": 43,
-      "ts": 1788488681.808277,
-      "level": "report",
-      "agent_id": "system",
-      "agent": "system",
-      "role": "system",
-      "message": "finish_scan \u2014 6 findings (top: CRITICAL \u2014 Hardcoded live secret key in client bundle)",
-      "data": {
-        "markdown": "# OpenOffensive \u2014 Penetration Test Report\n\n**Target:** http://host.docker.internal:8000\n**Mode:** scripted\n**Findings:** 6  critical=1  high=2  medium=1  low=1  info=1\n**Model turns:** 0   **spend:** $0.00\n\n_Every finding carries the exact command run inside the sandbox container and the raw output it was drawn from \u2014 re-run the command in the same container to reproduce it. CVSS is a representative score mapped from severity, not a computed vector._\n\n## Findings\n\n### [CRITICAL \u00b7 CVSS 9.4] Hardcoded live secret key in client bundle\n- **id:** VULN-0002   **cwe:** CWE-798   **by:** Recon Scout\n- **endpoint:** `/static/app.js`\n- **evidence:** Client-served JS embeds a live sk_live_ key.\n- **poc:** `curl -s $TARGET/static/app.js | grep sk_live_`\n- **fix:** Revoke the key; move secrets server-side.\n- **verified by running:** `curl -s http://host.docker.internal:8000/static/app.js`\n\n  Raw output this finding was drawn from:\n\n  ```\n  const CONFIG={stripeKey:\"sk_live_51JbXdemoLEAKED\"};\n  ```\n\n### [HIGH \u00b7 CVSS 7.8] Error-based SQL injection\n- **id:** VULN-0004   **cwe:** CWE-89   **by:** Injection Hunter\n- **endpoint:** `/login`\n- **evidence:** A single quote triggers a raw SQL error in the response.\n- **poc:** `curl -s \"$TARGET/login?user=admin%27&pass=x\"`\n- **fix:** Use parameterised queries; never concatenate input into SQL.\n- **verified by running:** `curl -s -i \"http://host.docker.internal:8000/login?user=admin%27&pass=x\"`\n\n  Raw output this finding was drawn from:\n\n  ```\n  SQLite3::SQLException: unrecognized token near \"'\"\n  ```\n\n### [HIGH \u00b7 CVSS 7.8] IDOR \u2014 unauthenticated access to any user record\n- **id:** VULN-0006   **cwe:** CWE-639   **by:** Access Auditor\n- **endpoint:** `/api/user/{id}`\n- **evidence:** Records for several ids returned without auth, each exposing another user's email and api_token.\n- **poc:** `for i in 1 2 3; do curl -s $TARGET/api/user/$i; done`\n- **fix:** Enforce authentication and an ownership check on every lookup.\n- **verified by running:** `for i in 1 2 3; do curl -s http://host.docker.internal:8000/api/user/$i; echo; done`\n\n  Raw output this finding was drawn from:\n\n  ```\n  {\"id\":1,\"api_token\":\"jbx_live_a\"}\n  {\"id\":2,\"api_token\":\"jbx_live_b\"}\n  {\"id\":3,\"api_token\":\"jbx_live_c\"}\n  ```\n\n### [MEDIUM \u00b7 CVSS 5.6] Reflected cross-site scripting (XSS)\n- **id:** VULN-0005   **cwe:** CWE-79   **by:** Injection Hunter\n- **endpoint:** `/search`\n- **evidence:** The q parameter is reflected un-encoded into the HTML body.\n- **poc:** `open \"$TARGET/search?q=\u003cscript\u003ealert(1)\u003c/script\u003e\"`\n- **fix:** Context-encode output; add a strict CSP.\n- **verified by running:** `curl -s \"http://host.docker.internal:8000/search?q=\u003cscript\u003exss1()\u003c/script\u003e\"`\n\n  Raw output this finding was drawn from:\n\n  ```\n  \u003chtml\u003e\u003ch2\u003eResults for: \u003cscript\u003exss1()\u003c/script\u003e\u003c/h2\u003e\u003c/html\u003e\n  ```\n\n### [LOW \u00b7 CVSS 3.3] Missing security headers\n- **id:** VULN-0003   **cwe:** CWE-693   **by:** Recon Scout\n- **endpoint:** `/`\n- **evidence:** Absent: content-security-policy, x-frame-options, x-content-type-options\n- **poc:** n/a\n- **fix:** Add CSP, X-Frame-Options, X-Content-Type-Options.\n- **verified by running:** `curl -s -i http://host.docker.internal:8000/`\n\n  Raw output this finding was drawn from:\n\n  ```\n  HTTP/1.1 200 OK\n  Server: JuiceBox/0.1\n  Content-Type: text/html\n  ```\n\n### [INFO \u00b7 CVSS 0.0] Server version disclosure\n- **id:** VULN-0001   **cwe:** CWE-200   **by:** Recon Scout\n- **endpoint:** `/`\n- **evidence:** Server header reveals 'JuiceBox/0.1'.\n- **poc:** n/a\n- **fix:** Suppress or genericise the Server header.\n- **verified by running:** `curl -s -i http://host.docker.internal:8000/`\n\n  Raw output this finding was drawn from:\n\n  ```\n  Server: JuiceBox/0.1\n  ```",
-        "summary": {
-          "total": 6,
-          "counts": {
-            "critical": 1,
-            "high": 2,
-            "medium": 1,
-            "low": 1,
-            "info": 1
-          },
-          "headline": "CRITICAL \u2014 Hardcoded live secret key in client bundle"
-        }
-      }
-    },
-    {
-      "seq": 44,
-      "ts": 1788488681.8112895,
-      "level": "system",
-      "agent_id": "system",
-      "agent": "system",
-      "role": "system",
-      "message": "artifacts written to runs/scan-demo01",
-      "data": {}
-    },
-    {
-      "seq": 45,
-      "ts": 1788488681.8113024,
-      "level": "system",
-      "agent_id": "system",
-      "agent": "system",
-      "role": "system",
-      "message": "scan complete in 0.0s \u00b7 0 turns \u00b7 $0.00",
-      "data": {}
-    }
-  ],
-  "findings": [
-    {
-      "id": "VULN-0001",
-      "title": "Server version disclosure",
-      "severity": "info",
-      "target": "http://host.docker.internal:8000",
-      "endpoint": "/",
-      "evidence": "Server header reveals 'JuiceBox/0.1'.",
-      "remediation": "Suppress or genericise the Server header.",
-      "agent": "Recon Scout",
-      "cwe": "CWE-200",
-      "poc": "",
-      "command": "curl -s -i http://host.docker.internal:8000/",
-      "output": "Server: JuiceBox/0.1",
-      "cvss": 0.0
-    },
-    {
-      "id": "VULN-0002",
-      "title": "Hardcoded live secret key in client bundle",
-      "severity": "critical",
-      "target": "http://host.docker.internal:8000",
-      "endpoint": "/static/app.js",
-      "evidence": "Client-served JS embeds a live sk_live_ key.",
-      "remediation": "Revoke the key; move secrets server-side.",
-      "agent": "Recon Scout",
-      "cwe": "CWE-798",
-      "poc": "curl -s $TARGET/static/app.js | grep sk_live_",
-      "command": "curl -s http://host.docker.internal:8000/static/app.js",
-      "output": "const CONFIG={stripeKey:\"sk_live_51JbXdemoLEAKED\"};",
-      "cvss": 9.4
-    },
-    {
-      "id": "VULN-0003",
-      "title": "Missing security headers",
-      "severity": "low",
-      "target": "http://host.docker.internal:8000",
-      "endpoint": "/",
-      "evidence": "Absent: content-security-policy, x-frame-options, x-content-type-options",
-      "remediation": "Add CSP, X-Frame-Options, X-Content-Type-Options.",
-      "agent": "Recon Scout",
-      "cwe": "CWE-693",
-      "poc": "",
-      "command": "curl -s -i http://host.docker.internal:8000/",
-      "output": "HTTP/1.1 200 OK\r\nServer: JuiceBox/0.1\r\nContent-Type: text/html",
-      "cvss": 3.3
-    },
-    {
-      "id": "VULN-0004",
-      "title": "Error-based SQL injection",
-      "severity": "high",
-      "target": "http://host.docker.internal:8000",
-      "endpoint": "/login",
-      "evidence": "A single quote triggers a raw SQL error in the response.",
-      "remediation": "Use parameterised queries; never concatenate input into SQL.",
-      "agent": "Injection Hunter",
-      "cwe": "CWE-89",
-      "poc": "curl -s \"$TARGET/login?user=admin%27&pass=x\"",
-      "command": "curl -s -i \"http://host.docker.internal:8000/login?user=admin%27&pass=x\"",
-      "output": "SQLite3::SQLException: unrecognized token near \"'\"",
-      "cvss": 7.8
-    },
-    {
-      "id": "VULN-0005",
-      "title": "Reflected cross-site scripting (XSS)",
-      "severity": "medium",
-      "target": "http://host.docker.internal:8000",
-      "endpoint": "/search",
-      "evidence": "The q parameter is reflected un-encoded into the HTML body.",
-      "remediation": "Context-encode output; add a strict CSP.",
-      "agent": "Injection Hunter",
-      "cwe": "CWE-79",
-      "poc": "open \"$TARGET/search?q=\u003cscript\u003ealert(1)\u003c/script\u003e\"",
-      "command": "curl -s \"http://host.docker.internal:8000/search?q=\u003cscript\u003exss1()\u003c/script\u003e\"",
-      "output": "\u003chtml\u003e\u003ch2\u003eResults for: \u003cscript\u003exss1()\u003c/script\u003e\u003c/h2\u003e\u003c/html\u003e",
-      "cvss": 5.6
-    },
-    {
-      "id": "VULN-0006",
-      "title": "IDOR \u2014 unauthenticated access to any user record",
-      "severity": "high",
-      "target": "http://host.docker.internal:8000",
-      "endpoint": "/api/user/{id}",
-      "evidence": "Records for several ids returned without auth, each exposing another user's email and api_token.",
-      "remediation": "Enforce authentication and an ownership check on every lookup.",
-      "agent": "Access Auditor",
-      "cwe": "CWE-639",
-      "poc": "for i in 1 2 3; do curl -s $TARGET/api/user/$i; done",
-      "command": "for i in 1 2 3; do curl -s http://host.docker.internal:8000/api/user/$i; echo; done",
-      "output": "{\"id\":1,\"api_token\":\"jbx_live_a\"}\n{\"id\":2,\"api_token\":\"jbx_live_b\"}\n{\"id\":3,\"api_token\":\"jbx_live_c\"}",
-      "cvss": 7.8
-    }
-  ],
-  "counts": {
-    "critical": 1,
-    "high": 2,
-    "medium": 1,
-    "low": 1,
-    "info": 1
-  },
-  "report_md": "# OpenOffensive \u2014 Penetration Test Report\n\n**Target:** http://host.docker.internal:8000\n**Mode:** scripted\n**Findings:** 6  critical=1  high=2  medium=1  low=1  info=1\n**Model turns:** 0   **spend:** $0.00\n\n_Every finding carries the exact command run inside the sandbox container and the raw output it was drawn from \u2014 re-run the command in the same container to reproduce it. CVSS is a representative score mapped from severity, not a computed vector._\n\n## Findings\n\n### [CRITICAL \u00b7 CVSS 9.4] Hardcoded live secret key in client bundle\n- **id:** VULN-0002   **cwe:** CWE-798   **by:** Recon Scout\n- **endpoint:** `/static/app.js`\n- **evidence:** Client-served JS embeds a live sk_live_ key.\n- **poc:** `curl -s $TARGET/static/app.js | grep sk_live_`\n- **fix:** Revoke the key; move secrets server-side.\n- **verified by running:** `curl -s http://host.docker.internal:8000/static/app.js`\n\n  Raw output this finding was drawn from:\n\n  ```\n  const CONFIG={stripeKey:\"sk_live_51JbXdemoLEAKED\"};\n  ```\n\n### [HIGH \u00b7 CVSS 7.8] Error-based SQL injection\n- **id:** VULN-0004   **cwe:** CWE-89   **by:** Injection Hunter\n- **endpoint:** `/login`\n- **evidence:** A single quote triggers a raw SQL error in the response.\n- **poc:** `curl -s \"$TARGET/login?user=admin%27&pass=x\"`\n- **fix:** Use parameterised queries; never concatenate input into SQL.\n- **verified by running:** `curl -s -i \"http://host.docker.internal:8000/login?user=admin%27&pass=x\"`\n\n  Raw output this finding was drawn from:\n\n  ```\n  SQLite3::SQLException: unrecognized token near \"'\"\n  ```\n\n### [HIGH \u00b7 CVSS 7.8] IDOR \u2014 unauthenticated access to any user record\n- **id:** VULN-0006   **cwe:** CWE-639   **by:** Access Auditor\n- **endpoint:** `/api/user/{id}`\n- **evidence:** Records for several ids returned without auth, each exposing another user's email and api_token.\n- **poc:** `for i in 1 2 3; do curl -s $TARGET/api/user/$i; done`\n- **fix:** Enforce authentication and an ownership check on every lookup.\n- **verified by running:** `for i in 1 2 3; do curl -s http://host.docker.internal:8000/api/user/$i; echo; done`\n\n  Raw output this finding was drawn from:\n\n  ```\n  {\"id\":1,\"api_token\":\"jbx_live_a\"}\n  {\"id\":2,\"api_token\":\"jbx_live_b\"}\n  {\"id\":3,\"api_token\":\"jbx_live_c\"}\n  ```\n\n### [MEDIUM \u00b7 CVSS 5.6] Reflected cross-site scripting (XSS)\n- **id:** VULN-0005   **cwe:** CWE-79   **by:** Injection Hunter\n- **endpoint:** `/search`\n- **evidence:** The q parameter is reflected un-encoded into the HTML body.\n- **poc:** `open \"$TARGET/search?q=\u003cscript\u003ealert(1)\u003c/script\u003e\"`\n- **fix:** Context-encode output; add a strict CSP.\n- **verified by running:** `curl -s \"http://host.docker.internal:8000/search?q=\u003cscript\u003exss1()\u003c/script\u003e\"`\n\n  Raw output this finding was drawn from:\n\n  ```\n  \u003chtml\u003e\u003ch2\u003eResults for: \u003cscript\u003exss1()\u003c/script\u003e\u003c/h2\u003e\u003c/html\u003e\n  ```\n\n### [LOW \u00b7 CVSS 3.3] Missing security headers\n- **id:** VULN-0003   **cwe:** CWE-693   **by:** Recon Scout\n- **endpoint:** `/`\n- **evidence:** Absent: content-security-policy, x-frame-options, x-content-type-options\n- **poc:** n/a\n- **fix:** Add CSP, X-Frame-Options, X-Content-Type-Options.\n- **verified by running:** `curl -s -i http://host.docker.internal:8000/`\n\n  Raw output this finding was drawn from:\n\n  ```\n  HTTP/1.1 200 OK\n  Server: JuiceBox/0.1\n  Content-Type: text/html\n  ```\n\n### [INFO \u00b7 CVSS 0.0] Server version disclosure\n- **id:** VULN-0001   **cwe:** CWE-200   **by:** Recon Scout\n- **endpoint:** `/`\n- **evidence:** Server header reveals 'JuiceBox/0.1'.\n- **poc:** n/a\n- **fix:** Suppress or genericise the Server header.\n- **verified by running:** `curl -s -i http://host.docker.internal:8000/`\n\n  Raw output this finding was drawn from:\n\n  ```\n  Server: JuiceBox/0.1\n  ```"
-}</script>
 <script>
 (function(){
   "use strict";
@@ -1411,7 +674,7 @@
   function poll(){
     fetch("/api/state").then(function(r){return r.json()}).then(function(s){
       setTarget(s.target);
-      $("mode-name").textContent=s.mode||"scripted";
+      $("mode-name").textContent=s.mode||"llm";
       $("model-name").textContent=(s.mode==="llm"&&s.model)?("· "+s.model):"";
       $("docker-dot").className="dk"+(s.llm_enabled?" on":"");
       if(!viewingHistory){
@@ -1420,7 +683,7 @@
         setStatus(s.scanning?"running":(s.status==="done"?"done":(s.status==="error"?"error":"")),s.scanning?"running":(s.status||"idle"));
         var banner=$("errbanner");
         if(s.status==="error"&&s.last_error){banner.setAttribute("data-kind","error");banner.textContent="\u26A0 "+s.last_error;banner.classList.add("show");}
-        else if(s.key_missing&&!s.scanning){banner.setAttribute("data-kind","warn");banner.textContent="\u26A0 ANTHROPIC_API_KEY is not set \u2014 model-driven scans will fail until you set it (or run scripted mode).";banner.classList.add("show");}
+        else if(s.key_missing&&!s.scanning){banner.setAttribute("data-kind","warn");banner.textContent="\u26A0 ANTHROPIC_API_KEY is not set \u2014 scans will fail until you set it.";banner.classList.add("show");}
         else{banner.classList.remove("show");}
       }
       $("run").disabled=!!s.scanning;
@@ -1461,7 +724,6 @@
   }
 
   $("run").onclick=function(){
-    if(MODE==="demo"){playDemo();return;}
     started=false; viewingHistory=false;
     fetch("/api/scan",{method:"POST"}).then(function(r){return r.json()}).then(poll).catch(function(){});
   };
@@ -1471,43 +733,8 @@
   document.addEventListener("keydown",function(e){if(e.key==="Escape")$("report").classList.remove("show")});
   log.addEventListener("scroll",function(){autoscroll=log.scrollTop+log.clientHeight>=log.scrollHeight-40});
 
-  /* ---------------- demo mode (embedded seed, simulated streaming) ------ */
-  var SEED=null; try{SEED=JSON.parse($("seed").textContent||"null")}catch(e){}
-  var demoTimer=null;
-  function seedMeters(){
-    setTarget(SEED.target);
-    $("mode-name").textContent=SEED.mode||"scripted";
-    $("model-name").textContent="";
-    $("docker-dot").className="dk";
-  }
-  function playDemo(){
-    if(demoTimer)clearInterval(demoTimer);
-    started=false; viewingHistory=false; ensureCleared(); seedMeters();
-    setStatus("running","running"); $("run").disabled=true; $("run-t").textContent="scanning…";
-    var evs=SEED.events.slice(), i=0, base=Date.now()/1000;
-    demoTimer=setInterval(function(){
-      if(i>=evs.length){
-        clearInterval(demoTimer);demoTimer=null;
-        setStatus("done","done"); $("run").disabled=false; $("run-t").textContent="Run scan";
-        $("k-cost").textContent="$"+Number(SEED.cost||0).toFixed(2);
-        $("k-turns").textContent=(SEED.turns||0)+" model turns";
-        return;
-      }
-      var ev=JSON.parse(JSON.stringify(evs[i])); ev.ts=base+i*0.35; handle(ev); i++;
-    },110);
-  }
-  function renderDemoStatic(){          // for ?snap thumbnails: fully rendered, no animation
-    started=false; ensureCleared(); seedMeters();
-    SEED.events.forEach(function(ev){handle(ev)});
-    setStatus("done","done");
-    $("k-cost").textContent="$"+Number(SEED.cost||0).toFixed(2);
-    $("k-turns").textContent=(SEED.turns||0)+" model turns";
-    renderRuns([{scan_id:"scan-demo01",status:SEED.status||"done",mode:SEED.mode,counts:SEED.counts,target:SEED.target,duration:0.1}]);
-  }
-
   /* ---------------- boot ---------------- */
-  var qs=location.search, SNAP=qs.indexOf("snap")>=0,
-      WANTDEMO=qs.indexOf("demo")>=0||!!window.__OO_DEMO_STATIC__, MODE="live";
+  var qs=location.search, SNAP=qs.indexOf("snap")>=0;
   function startLive(){
     if(!SNAP){
       try{var es=new EventSource("/api/events");es.onmessage=function(e){if(viewingHistory)return;try{handle(JSON.parse(e.data))}catch(_){}}}catch(e){}
@@ -1516,17 +743,17 @@
     }
     poll(); refreshHistory(); if(!SNAP) setInterval(poll,1000);
   }
-  function startDemo(){
-    MODE="demo"; $("demoflag").classList.add("show"); $("demonote").hidden=false;
-    if(SNAP||window.__OO_DEMO_STATIC__) renderDemoStatic(); else playDemo();
-  }
-  if(WANTDEMO && SEED){ startDemo(); }
-  else {
-    // probe the backend; if it isn't there (opened as a static file / artifact), fall back to demo
-    fetch("/api/state",{method:"GET"}).then(function(r){
-      if(!r.ok) throw 0; MODE="live"; startLive();
-    }).catch(function(){ if(SEED){startDemo();} else {startLive();} });
-  }
+  // Always run against the real backend. If it isn't reachable, say so plainly —
+  // never fall back to canned or demo data.
+  fetch("/api/state",{method:"GET"}).then(function(r){
+    if(!r.ok) throw 0; startLive();
+  }).catch(function(){
+    var banner=$("errbanner");
+    banner.setAttribute("data-kind","error");
+    banner.textContent="⚠ Can't reach the OpenOffensive backend. Start it with: openoffensive serve <target>";
+    banner.classList.add("show");
+    setStatus("error","offline");
+  });
 })();
 </script>
 </body>

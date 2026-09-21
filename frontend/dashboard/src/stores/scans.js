@@ -13,8 +13,8 @@ export const useScansStore = defineStore('scans', () => {
     detail.value = (await scansApi.get(id)).data
     return detail.value
   }
-  async function create(target, mode) {
-    const scan = (await scansApi.create({ target, mode })).data
+  async function create(target) {
+    const scan = (await scansApi.create({ target })).data
     await fetchList()
     return scan
   }

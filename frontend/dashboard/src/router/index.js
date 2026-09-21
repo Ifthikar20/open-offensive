@@ -29,7 +29,9 @@ const routes = [
   // Protected app
   protect('/dashboard', 'dashboard', () => import('@/pages/DashboardPage.vue')),
   protect('/scans/:id', 'scan-detail', () => import('@/pages/ScanDetailPage.vue')),
+  protect('/history', 'scan-history', () => import('@/pages/ScanHistoryPage.vue')),
   protect('/settings', 'settings', () => import('@/pages/SettingsPage.vue')),
+  protect('/profile', 'profile', () => import('@/pages/ProfilePage.vue')),
 
   { path: '/:pathMatch(.*)*', redirect: { name: 'dashboard' } },
 ]

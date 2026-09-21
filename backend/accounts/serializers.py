@@ -12,7 +12,38 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "username", "email", "is_staff")
+        fields = ("id", "username", "email", "first_name", "last_name",
+                  "is_staff", "date_joined", "last_login")
+        read_only_fields = ("id", "username", "is_staff", "date_joined", "last_login")
+
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    """The fields a user may edit on their own profile (username stays fixed)."""
+
+    class Meta:
+        model = User
+        fields = ("email", "first_name", "last_name")
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+    new_password = serializers.CharField(
+        write_only=True, min_length=8, style={"input_type": "password"})
+
+    def validate_current_password(self, value):
+        if not self.context["request"].user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+
+    def validate_new_password(self, value):
+        validate_password(value, self.context["request"].user)
+        return value
+
+    def save(self):
+        user = self.context["request"].user
+        user.set_password(self.validated_data["new_password"])
+        user.save(update_fields=["password"])
+        return user
 
 
 class RegisterSerializer(serializers.Serializer):

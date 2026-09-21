@@ -63,9 +63,10 @@ requires an authenticated session.
 | `GET  /api/auth/me/` | user | The current user. |
 | `POST /api/auth/request-access/` | public | Landing-page waitlist (`email`, `name?`, `note?`). |
 | `GET  /api/scans/` | user | List the caller's scans (lightweight rows). |
-| `POST /api/scans/` | user | Start a scan (`target?`, `mode` = `auto`/`llm`/`scripted`). |
+| `POST /api/scans/` | user | Start a scan (`target` required). |
 | `GET  /api/scans/{id}/` | user | Full scan detail — poll this for `status`, findings, report. |
 | `GET  /api/scans/{id}/report/` | user | Just the Markdown report. |
+| `GET  /api/scans/{id}/report_pdf/` | user | The report as a PDF (`?template=technical`/`executive`/`owasp`). |
 
 A created scan starts as `queued`, moves to `running`, then settles at `done`
 or `error`. The dashboard polls the detail endpoint until it is terminal.
@@ -74,7 +75,7 @@ or `error`. The dashboard polls the detail endpoint until it is terminal.
 
 1. `POST /api/scans/` creates a `Scan` and returns immediately (`status: queued`).
 2. A background daemon thread runs
-   `python -m openoffensive scan <target> --mode <mode> --runs-dir backend/runs/<scan_pk> --sandbox <backend>`.
+   `python -m openoffensive scan <target> --runs-dir backend/runs/<scan_pk> --sandbox <backend>`.
 3. On completion the runner reads the engine's own artifacts with `RunStore`
    (`run.json`, `findings.json`, `report.md`) and populates the `Scan` row.
 

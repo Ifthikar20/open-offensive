@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time
 import uuid
@@ -12,7 +13,7 @@ from . import reporting
 from .agents import RootAgent
 from .config import Settings, load_settings
 from .coordinator import Coordinator
-from .llm import llm_available, preflight_model
+from .llm import preflight_model
 from .models import ScanResult
 from .persistence import RunStore
 from .sandbox import (SANDBOX_DIR, LocalSandbox, SandboxError, docker_available,
@@ -43,17 +44,6 @@ def _failed_from_crashes(coord: Coordinator) -> tuple[bool, str]:
     return False, ""
 
 
-def resolve_mode(settings: Settings) -> tuple[str, str]:
-    """Return (mode, note). LLM is the operating mode unless scripted is explicitly
-    requested (``--mode scripted`` / ``OPENOFFENSIVE_LLM_MODE=scripted``). In every
-    other case the mode is "llm"; if a key or the SDK is missing, or the model is
-    unreachable, the scan fails LOUDLY at preflight rather than silently degrading
-    to a scripted playbook."""
-    if settings.llm_mode == "scripted":
-        return "scripted", ""
-    return "llm", ""
-
-
 def classify_target(target: str) -> str:
     """'dir' (local source), 'repo' (git URL), or 'url' (live app to probe)."""
     if os.path.isdir(target):
@@ -78,6 +68,25 @@ def _repo_url_and_name(target: str) -> tuple[str, str]:
     return t, (name or "repo")
 
 
+def _open_event_log(store: RunStore, scan_id: str):
+    """Open a per-scan events.jsonl for live appending. Best-effort: returns None
+    if the file can't be opened, so streaming never blocks a scan."""
+    try:
+        d = store.dir_for(scan_id)
+        d.mkdir(parents=True, exist_ok=True)
+        return open(d / "events.jsonl", "a", encoding="utf-8")
+    except Exception:
+        return None
+
+
+def _append_event(fh, ev) -> None:
+    try:
+        fh.write(json.dumps(ev.to_dict()) + "\n")
+        fh.flush()
+    except Exception:
+        pass
+
+
 def run_scan(coord: Coordinator, *, settings: Optional[Settings] = None,
              scan_id: Optional[str] = None, store: Optional[RunStore] = None,
              sandbox: Optional[Any] = None) -> ScanResult:
@@ -90,18 +99,21 @@ def run_scan(coord: Coordinator, *, settings: Optional[Settings] = None,
     scan_id = scan_id or f"scan-{uuid.uuid4().hex[:8]}"
     store = store if store is not None else RunStore(settings.runs_dir)
 
+    # Stream events to disk as they're emitted so an out-of-process reader (the
+    # web backend) can tail the live log while the scan is still running.
+    _event_log = _open_event_log(store, scan_id)
+    if _event_log is not None:
+        coord.on_event = lambda ev: _append_event(_event_log, ev)
+
     created_sandbox = sandbox is None
-    mode, note = resolve_mode(settings)
+    mode = "llm"
     coord.mode = mode
     coord.status = "running"
     coord.started_at = time.time()
     backend = (settings.sandbox_backend or "auto") if created_sandbox else "injected"
     coord.emit("system", None,
                f"scan started against {coord.target}  [mode: {mode} · sandbox: {backend}]")
-    if note:
-        coord.emit("system", None, note)
-    if mode == "llm":
-        coord.emit("system", None, f"agents reasoning with model {settings.model}")
+    coord.emit("system", None, f"agents reasoning with model {settings.model}")
 
     status = "done"
 
@@ -109,16 +121,14 @@ def run_scan(coord: Coordinator, *, settings: Optional[Settings] = None,
         coord.emit(level, None, msg)
 
     try:
-        # In LLM mode the agents call the model from the host on their first step;
-        # verify it's reachable now, before spending time building the container.
-        if mode == "llm":
-            ok, msg = preflight_model(settings)
-            if not ok:
-                raise PreflightError(
-                    "the model is unreachable, so the agents can't reason — "
-                    f"{msg}. Set ANTHROPIC_API_KEY (and `pip install 'openoffensive[llm]'`) "
-                    "and run `openoffensive doctor`, or pass --mode scripted to run the "
-                    "no-key demo playbook.")
+        # The agents call the model from the host on their first step; verify it's
+        # reachable now, before spending time building the container.
+        ok, msg = preflight_model(settings)
+        if not ok:
+            raise PreflightError(
+                "the model is unreachable, so the agents can't reason — "
+                f"{msg}. Set ANTHROPIC_API_KEY (and `pip install 'openoffensive[llm]'`) "
+                "and run `openoffensive doctor`.")
         if created_sandbox:
             desired = (settings.sandbox_backend or "auto").lower()
             if desired not in ("docker", "local"):
@@ -209,6 +219,14 @@ def run_scan(coord: Coordinator, *, settings: Optional[Settings] = None,
 
     coord.status = status
     coord.finished_at = time.time()
+
+    # Stop live-streaming before the authoritative artifacts are written.
+    coord.on_event = None
+    if _event_log is not None:
+        try:
+            _event_log.close()
+        except Exception:
+            pass
 
     try:
         store.save(coord, result)
